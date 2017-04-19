@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "################################################################################\n# Author: Julius Eberhard\n# Last Edit: 2016-09-30\n# Project: ECHSE Evapotranspiration\n# Program: echse_calibration\n# Aim: Calibration of ECHSE Models for Simulating Evapotranspiration\n################################################################################\n\nrm(list=ls())\n\n# PROGRAM PARAMETERS -----------------------------------------------------------\n\n# path to main R script calling the model\nCAL.main.path <- \"~/boxup/whk_echse/echse_portugal.R\"\n# path to model output\nCAL.out.path <- \"~/uni/projects/evap_portugal/run/output/test1.txt\"\n# path to observations (which are compared to model output)\nCAL.obs.path <- \"\"\n\n# SET AND LOAD -----------------------------------------------------------------\n\nCAL.obs <- read.table(CAL.obs.path)\n\n# PREPROCESSING ----------------------------------------------------------------\n\n# find starting and ending line of script\nCAL.lstart <- system(paste(\"grep -in 'calibration on'\", main.path,\n                           \"| sed 's/^\\([0-9])\\+\\):.*$/\\1/'\"))\nCAL.lend <- system(paste(\"grep -in 'calibration off'\", main.path,\n                         \"| sed 's/^\\([0-9])\\+\\):.*$/\\1/'\"))\n# parameter ranges and sampling\nCAL.drag_coef <- sort(runif(10, 0, 0))\nCAL.ext <- sort(runif(10, 0, 0))\nCAL.par_stressHum <- sort(runif(10, 0, 0))\nCAL.res_leaf_min <- sort(runif(10, 0, 0))\nCAL.rss_a <- sort(runif(10, 0, 0))\nCAL.rss_b <- sort(runif(10, 0, 0))\nCAL.wc_etmax <- sort(runif(10, 0, 0))\nCAL.wstressmax <- sort(runif(10, 0, 0))\n\n# MONTE CARLO LOOP -------------------------------------------------------------\n# wrong ... don't use every value create before\n# do it rightly: create evenly partitioned vectors for parameters, then create\n# parameter space of all combinations, then choose randomly from this\n\nfor (ii in CAL.drag_coef) {\nfor (jj in CAL.ext) {\nfor (kk in CAL.par_stressHum) {\nfor (ll in CAL.res_leaf_min) {\nfor (mm in CAL.rss_a) {\nfor (nn in CAL.rss_b) {\nfor (oo in CAL.wc_etmax) {\nfor (pp in CAL.wstressmax) {\n# run main script\nsource(pipe(paste0(\"sed -n \", CAL.lstart, \",\", CAL.lend, \"p \", CAL.main.path)))\n# adapt calibration parameters\ndrag_coef <- CAL.drag_coef[ii]\next <- CAL.ext[jj]\npar_stressHum <- CAL.par_stressHum[kk]\nres_leaf_min <- CAL.res_leaf_min[ll]\nrss_a <- CAL.rss_a[mm]\nrss_b <- CAL.rss_b[nn]\nwc_etmax <- CAL.wc_etmax[oo]\nwstressmax <- CAL.wstressmax[pp]\n# generate input files\nechseCtrl_cnf(engine, tstart, tend, dt)\nechseCtrl_out(engine, output, et.choice[1])\nechseCtrl_loc(engine, selection$DAT, A, locs)\nechseCtrl_fil(engine, selection$DAT, A)\nechseCtrl_shpar(engine, sharedParamNum, selection$SHP)\nechseCtrl_par(engine, paramNum, selection$PAR)\nechseCtrl_ini(engine, selection$STV, selection$I)\n# run model\nsystem(paste0(\"cd ~/uni/projects/\", engine, \"/run; ./run cnf_default\"))\n\n# READ MODEL OUTPUT ------------------------------------------------------------\n\nCAL.out <- read.table(CAL.out.path)\n\n}  # end wstressmax loop\n}  # end wc_etmax loop\n}  # end rss_b loop\n}  # end rss_a loop\n}  # end res_leaf_min loop\n}  # end par_stressHum loop\n}  # end ext loop\n}  # end drag_coef loop",
+    "created" : 1475252524945.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3338105351",
+    "id" : "122567F4",
+    "lastKnownWriteTime" : 1475260917,
+    "last_content_update" : 1475260917655,
+    "path" : "~/boxup/whk_echse/tms_portugal/echse_calibration.R",
+    "project_path" : "tms_portugal/echse_calibration.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

@@ -1,0 +1,11 @@
+./data/*.pdf
+./data/*.jpg
+./doku
+./lit
+./micrometeo_towers_gis
+./R-script*
+./.Rproj.user
+./albedoSin.R
+./*.ods
+./*.odt
+./*.odp

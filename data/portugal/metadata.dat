@@ -1,0 +1,30 @@
+# units in data files:
+
+clay "clay content" %
+silt "silt content" %
+sand "sand content" %
+som "soil organic matter content" %
+cnratio "C/N ratio" -
+cstock "carbon stock" tC.ha-1
+root_depth "rooting depth" mm
+tmean "mean temperature" °C
+par "" mol.m-2
+etref "reference evapotranspiration" mm
+ptot "total precipitation" mm
+pwinter "" mm
+pspring "" mm
+psummer "" mm
+pfall "" mm
+ettot "total evapotranspiration" mm
+etwinter "" mm
+etspring "" mm
+etsummer "" mm
+etfall "" mm
+tree_dens "tree density" trees.ha-1
+tree_cover "" %
+tree_height "" mm
+tree_dbh "diameter at breast height" mm
+laimax "leaf area index" -
+tree_cstock "total C stock in trees" tC.ha-1
+shrub_cstock "above-ground C stock in shrubs" tC.ha-1
+grass_cstock "above-ground C stock in grasses" tC.ha-1

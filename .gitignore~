@@ -1,0 +1,12 @@
+./data/*.pdf
+./data/*.jpg
+./doku
+./lit
+./micrometeo_towers_gis
+./R-script*
+./.Rproj.user
+./albedoSin.R
+./arbeitszeit.ods
+./decision_tree_maidment.odt
+./*.odt
+./*.odp
