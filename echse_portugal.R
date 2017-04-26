@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-03-31
+# Last Edit: 2017-04-21
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -106,14 +106,15 @@ locs <- list(field.station,  # alb
 # SET AND LOAD -----------------------------------------------------------------
 
 # set working directory
-if (system("hostname", intern=T) == "raspberrypi") {
-  setwd("/home/pi/ownCloud/whk_echse")
-} else {
-  setwd("/home/julius/boxup/whk_echse")
-}
+# not needed
+#if (system("hostname", intern=T) == "raspberrypi") {
+#  setwd("/home/pi/whk_echse")
+#} else {
+#  setwd("/home/julius/boxup/whk_echse")
+#}
 
 # load scripts
-source("~/R/jufun.R")  # CheckPack()
+source("~/R/functions/jufun.R")  # CheckPack(), ptf functions
 source("echseCtrl.R")  # control files
 source("echseInput.R")  # data input files
 source("echseParEst.R")  # parameter estimation
@@ -121,23 +122,20 @@ source("echsePost.R")  # postprocessing
 source("echsePre.R")  # preprocessing
 
 # load packages
-CheckPack(c("MASS", "RAtmosphere", "soilwaterptf", "TTR", "xtable", "xts"))
+CheckPack(c("MASS", "RAtmosphere", "TTR", "xtable", "xts"))
 library(MASS)  # write.matrix()
-library(soilwaterptf)
 library(xtable)  # latex tables
 library(xts)  # time series handling
 
 # load data
-load("data/portugal/meteo_HS.Rdata")
-HS.full <- met_full
-load("data/portugal/meteo_NSA.Rdata")
-NSA.full <- met_full
+HS.full <- get(load("data/portugal/meteo_HS.Rdata"))
+NSA.full <- get(load("data/portugal/meteo_NSA.Rdata"))
 meteo <- na.omit(read.csv("data/portugal/meteo_ok.csv", header=T))
 soildata <- read.table("data/portugal/soildata.dat", header=T)
-wc.data.HS <- read.table("data/portugal/soil_moisture_HS.txt", header=T,
-                         sep="\t")
-wc.data.NSA <- read.table("data/portugal/soil_moisture_NSA.txt", header=T,
-                          sep="\t")
+wc.HS <- read.table("data/portugal/soil_moisture_HS.txt", header=T,
+                    sep="\t")
+wc.NSA <- read.table("data/portugal/soil_moisture_NSA.txt", header=T,
+                     sep="\t")
 
 # PREPROCESSING ----------------------------------------------------------------
 
@@ -243,8 +241,8 @@ for (i in 1:length(HS.names)) {
 }
 
 # soil moisture data
-wc.data.HS.xts <- xts(wc.data.HS$sm, order.by=as.POSIXct(wc.data.HS$date))
-wc.data.NSA.xts <- xts(wc.data.NSA$sm, order.by=as.POSIXct(wc.data.NSA$date))
+wc.HS.xts <- xts(wc.HS$sm, order.by=as.POSIXct(wc.HS$date))
+wc.NSA.xts <- xts(wc.NSA$sm, order.by=as.POSIXct(wc.NSA$date))
 if (!wc.new) {
   # Set soil moisture to zero where negative ...
   HS.list[[4]][HS.list[[4]] < 0] <- 0
@@ -253,10 +251,10 @@ if (!wc.new) {
   # ... or use new data instead.
   date.rg.HS <- range(index(HS.list[[4]]))
   date.rg.NSA <- range(index(NSA.list[[4]]))
-  HS.list[[4]] <- wc.data.HS.xts[index(wc.data.HS.xts) >= date.rg.HS[1]
-                                 & index(wc.data.HS.xts) <= date.rg.HS[2]]
-  NSA.list[[4]] <- wc.data.NSA.xts[index(wc.data.NSA.xts) >= date.rg.NSA[1]
-                                   & index(wc.data.NSA.xts) <= date.rg.NSA[2]]
+  HS.list[[4]] <- wc.HS.xts[index(wc.HS.xts) >= date.rg.HS[1]
+                                 & index(wc.HS.xts) <= date.rg.HS[2]]
+  NSA.list[[4]] <- wc.NSA.xts[index(wc.NSA.xts) >= date.rg.NSA[1]
+                                   & index(wc.NSA.xts) <= date.rg.NSA[2]]
 }
 
 # METEO STATION DATA
