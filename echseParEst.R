@@ -1,22 +1,25 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-27
+# Last Edit: 2017-04-28
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, f_*, fcorr_*, emis_*, radex_*
-# TODO(2017-04-27): new method for fcorr based on net lw rad and emis
+# TODO(2017-04-27): finish method for fcorr based on net lw rad and emis
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
                                   # [radex_[a/b], fcorr_[a/b], emis_[a/b],
                                   # f_[day/night], alb]
-                        rsufile = NA,  # file with upward sw rad. data*
-                        rxfile = NA,  # file with extraterrestrial rad. data*
                         grfile = NA,  # file with global radiation data*
                         rnetfile = NA,  # file with net radiation data*
+                        rldfile = NA,  # file with downward lw rad. data*
+                        rlufile = NA,  # file with upward lw rad. data*
+                        rsufile = NA,  # file with upward sw rad. data*
+                        rxfile = NA,  # file with extraterrestrial rad. data*
                         sheatfile = NA,  # file with soil heat flux data*
-                                         # *Supply complete file path!
+                        tempfile = NA,  # file with mean air temperature data*
+                                        # *Supply complete file path!
                         lat = 0,  # latitude for calculating sunrise/-set
                         lon = 0,  # longitude for... ditto
                         r.quantile = 0.05,  # lower quantile for min rad.ratio
@@ -41,7 +44,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # and to times where gr & rsu != 0
     gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 17 &
                   as.numeric(format(index(gr.full), "%H")) > 7 &
-                  gr.xts != 0 & rsu.xts != 0 &]
+                  gr.xts != 0 & rsu.xts != 0]
     rsu <- rsu.full[as.numeric(format(index(gr.full), "%H")) < 17 &
                     as.numeric(format(index(gr.full), "%H")) > 7 &
                     gr.xts != 0 & rsu.xts != 0]
@@ -118,17 +121,28 @@ echseParEst <- function(parname,  # name of parameter group to estimate
              as.numeric(quantile(rad.ratio, r.quantile, na.rm=T)),
              # radex_b
              r.max - as.numeric(quantile(rad.ratio, r.quantile, na.rm=T)))
-    #names(out) <- c("radex_a", "radex_b")
     return(out)
 
   } else if (length(grep("fcorr", parname)) != 0) {
   # fcorr parameters
 
+    # calculate net emissivity between ground and atmosphere
+    # Maidment 1993; Idso & Jackson 1969
+    temp <- read.delim(tempfile, sep="\t")
+    rld <- read.delim(rldfile, sep="\t")
+    rld.xts <- xts(rld[, 2], order.by=as.POSIXct(rld[, 1], tz="UTC"))
+    rlu <- read.delim(rlufile, sep="\t")
+    rlu.xts <- xts(rlu[, 2], order.by=as.POSIXct(rlu[, 1], tz="UTC"))
+    emis.xts <- xts(-0.02 + 0.261 * exp(-7.77E-4 * temp[, 2]^2),
+                    order.by=as.POSIXct(temp[, 1], tz="UTC"))
+    fcorr <- ...
+    
     return(c(1.35, -.35))
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
 
+    # It's not possible to estimate emis_a, emis_b from the available data.
     return(c(.34, -.14))
 
   } else if (length(grep("f", parname)) != 0) {
