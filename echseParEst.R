@@ -1,15 +1,17 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-12-07
+# Last Edit: 2017-04-27
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
-# Aim: Estimation of Model Parameters from Observations
-# Todo: 
-# 16-11-18: Best way of getting maximum ratio glorad/radex (r.max)?
+# Aim: Estimation of Model Parameters from Observations,
+#      Works for alb, f_*, fcorr_*, emis_*, radex_*
+# TODO(2017-04-27): new method for fcorr based on net lw rad and emis
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
-                                  # [radex_[a/b], fcorr_[a/b], emis_[a/b]]
+                                  # [radex_[a/b], fcorr_[a/b], emis_[a/b],
+                                  # f_[day/night], alb]
+                        rsufile = NA,  # file with upward sw rad. data*
                         rxfile = NA,  # file with extraterrestrial rad. data*
                         grfile = NA,  # file with global radiation data*
                         rnetfile = NA,  # file with net radiation data*
@@ -21,7 +23,36 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         plots = T  # plots for visual diagnosis?
                         ) {
 
-  if (length(grep("radex", parname)) != 0) {
+  if (length(grep("alb", parname)) != 0) {
+  # albedo
+
+    # read global radiation
+    gr <- read.delim(grfile, sep="\t")
+    gr.xts <- xts(gr[, 2], order.by=as.POSIXct(gr[, 1], tz="UTC"))
+    # read upward short-wave radiation
+    rsu <- read.delim(rsufile, sep="\t")
+    rsu.xts <- xts(rsu[, 2], order.by=as.POSIXct(rsu[, 1], tz="UTC"))
+    # select common time window
+    tstart <- max(index(gr.xts)[1], index(rsu.xts)[1])
+    tend <- min(tail(index(gr.xts), 1), tail(index(rsu.xts), 1))
+    gr.full <- gr.xts[paste0(tstart, "/", tend)]
+    rsu.full <- rsu.xts[paste0(tstart, "/", tend)]
+    # restrict to times between 8:00 and 16:00 to avoid odd night effects
+    # and to times where gr & rsu != 0
+    gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 17 &
+                  as.numeric(format(index(gr.full), "%H")) > 7 &
+                  gr.xts != 0 & rsu.xts != 0 &]
+    rsu <- rsu.full[as.numeric(format(index(gr.full), "%H")) < 17 &
+                    as.numeric(format(index(gr.full), "%H")) > 7 &
+                    gr.xts != 0 & rsu.xts != 0]
+    alb.series <- gr / rsu
+    # diagnostic plot
+    if (plots)
+      plot(apply.daily(alb.series[alb.series < 1], mean))
+    alb <- mean(alb.series[alb.series < 1])
+    return(alb)
+
+  } else if (length(grep("radex", parname)) != 0) {
   # radex parameters
 
     # read extraterrestrial radiation
@@ -36,10 +67,10 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     rx.full <- radex.xts[paste0(tstart, "/", tend)]
     gr.full <- glorad.xts[paste0(tstart, "/", tend)]
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
-    rx <- rx.full[as.numeric(format(index(rx.full), "%H")) < 19 &
-                  as.numeric(format(index(rx.full), "%H")) > 5]
-    gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 19 &
-                  as.numeric(format(index(gr.full), "%H")) > 5]
+    rx <- rx.full[as.numeric(format(index(rx.full), "%H")) < 17 &
+                  as.numeric(format(index(rx.full), "%H")) > 7]
+    gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 17 &
+                  as.numeric(format(index(gr.full), "%H")) > 7]
     # calculate ratio of radex and glorad
     rad.ratio <- as.numeric(gr) / as.numeric(rx)
     MaxRadRatio <- function(i) {
@@ -55,24 +86,26 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # diagnostic plots
     if (plots) {
       # plot histogram of calculated ratios
-      S <- F
+      S <- FALSE
       repeat {
         hist(rad.ratio, xlab="glorad/radex", breaks="Sturges", main="",
              xlim=c(0, 1))
-        if (S) break
+        if (S)
+          break
         pdf("doku/plot_radex1.pdf")
-        S <- T
+        S <- TRUE
       }
       dev.off()
       # plot rad.ratio over hours of day to detect subdaily trends
-      S <- F
+      S <- FALSE
       repeat {
         plot(as.numeric(format(index(rx), "%H")), rad.ratio, ylim=c(0, 1),
              xlab="hour of day", ylab="glorad/radex")
         abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
-        if (S) break
+        if (S)
+          break
         pdf("doku/plot_radex2.pdf")
-        S <- T
+        S <- TRUE
       }
       dev.off()
       # plot extraterr. and global radiation to detect time shifts
@@ -86,17 +119,17 @@ echseParEst <- function(parname,  # name of parameter group to estimate
              # radex_b
              r.max - as.numeric(quantile(rad.ratio, r.quantile, na.rm=T)))
     #names(out) <- c("radex_a", "radex_b")
-    out
+    return(out)
 
   } else if (length(grep("fcorr", parname)) != 0) {
   # fcorr parameters
 
-    c(1.35, -.35)  # There is no good method to estimate cloudiness correction.
+    return(c(1.35, -.35))
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
 
-    c(.34, -.14)
+    return(c(.34, -.14))
 
   } else if (length(grep("f", parname)) != 0) {
   # soil heat fraction parameters
@@ -150,8 +183,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else {
     
-    stop("Unknown parameter name! Possible choices: radex_*, fcorr_*, f_*,
-         emis_*.")
+    stop("Unknown parameter name! Possible choices: radex*, fcorr*, f*, emis*, alb.")
   
   }
   
