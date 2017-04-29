@@ -497,7 +497,24 @@ if (output != "rad_net") {
   f_night <- f.out[2]
 }
 
-# estimate radex_a & radex_b from global radiation and extraterr. radiation
+# estimate fcorr_a, fcorr_b
+# ... Remember to run the radex_* engine first!
+fcorr.out <- echseParEst("fcorr",
+                         tafile=paste0("~/uni/projects/evap_portugal",
+                                       "/data/forcing/meteo/05_meteofill/out/",
+                                       field.station, "/temper_data.dat"),
+                         rldfile="~/boxup/whk_echse/data/portugal/Ldown",
+                         rlufile="~/boxup/whk_echse/data/portugal/Lup",
+                         grfile=paste0("~/uni/projects/evap_portugal",
+                                       "/data/forcing/meteo/05_meteofill/out/",
+                                       field.station, "/glorad_data.dat"),
+                         rxfile=paste0("~/uni/projects/radex_portugal",
+                                       "/run/out/", field.station,
+                                       "/test1.txt"))
+fcorr_a <- fcorr.out[1]
+fcorr_b <- fcorr.out[2]
+
+# estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
 if (output != "radex") {
   radex.out <- echseParEst("radex",

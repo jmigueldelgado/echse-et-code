@@ -1,11 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-28
+# Last Edit: 2017-04-29
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, f_*, fcorr_*, emis_*, radex_*
-# TODO(2017-04-27): finish method for fcorr based on net lw rad and emis
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -18,10 +17,12 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         rsufile = NA,  # file with upward sw rad. data*
                         rxfile = NA,  # file with extraterrestrial rad. data*
                         sheatfile = NA,  # file with soil heat flux data*
-                        tempfile = NA,  # file with mean air temperature data*
-                                        # *Supply complete file path!
+                        tafile = NA,  # file with mean air temperature data*
+                                      # *Supply complete file path!
                         lat = 0,  # latitude for calculating sunrise/-set
                         lon = 0,  # longitude for... ditto
+                        radex_a = NA,  # parameter for estimating fcorr_*
+                        radex_b = NA,  # ditto
                         r.quantile = 0.05,  # lower quantile for min rad.ratio
                         plots = T  # plots for visual diagnosis?
                         ) {
@@ -77,14 +78,14 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # calculate ratio of radex and glorad
     rad.ratio <- as.numeric(gr) / as.numeric(rx)
     MaxRadRatio <- function(i) {
-                     out <- NA
-                     if (any(as.numeric(format(index(rx), "%H")) == i))
-                       rad.ratio2 <- rad.ratio[as.numeric(format(index(rx),
-                                                                 "%H")) == i]
-                       if (exists("rad.ratio2"))
-                         out <- max(rad.ratio2[which(rad.ratio2 < 1)], na.rm=T)
-                     out
-                   }
+      out <- NA
+      if (any(as.numeric(format(index(rx), "%H")) == i))
+        rad.ratio2 <- rad.ratio[as.numeric(format(index(rx),
+                                           "%H")) == i]
+      if (exists("rad.ratio2"))
+        out <- max(rad.ratio2[which(rad.ratio2 < 1)], na.rm=T)
+        return(out)
+    }
     r.max <- max(sapply(6:18, MaxRadRatio), na.rm=T)
     # diagnostic plots
     if (plots) {
@@ -127,17 +128,38 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   # fcorr parameters
 
     # calculate net emissivity between ground and atmosphere
-    # Maidment 1993; Idso & Jackson 1969
-    temp <- read.delim(tempfile, sep="\t")
-    rld <- read.delim(rldfile, sep="\t")
-    rld.xts <- xts(rld[, 2], order.by=as.POSIXct(rld[, 1], tz="UTC"))
-    rlu <- read.delim(rlufile, sep="\t")
-    rlu.xts <- xts(rlu[, 2], order.by=as.POSIXct(rlu[, 1], tz="UTC"))
-    emis.xts <- xts(-0.02 + 0.261 * exp(-7.77E-4 * temp[, 2]^2),
-                    order.by=as.POSIXct(temp[, 1], tz="UTC"))
-    fcorr <- ...
-    
-    return(c(1.35, -.35))
+    # (Maidment 1993; Idso & Jackson 1969)
+    ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
+    ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
+    emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta[, 2]^2),
+                order.by=as.POSIXct(ta[, 1], tz="UTC"))
+
+    # calculate fcorr (adapted Stefan-Boltzmann law)
+    rld <- readRDS(rldfile)  # downward lw radiation
+    rld <- xts(rld[, 2], order.by=as.POSIXct(rld[, 1], tz="UTC"))
+    rlu <- readRDS(rlufile)  # upward lw radiation
+    rlu <- xts(rlu[, 2], order.by=as.POSIXct(rlu[, 1], tz="UTC"))
+    # make inner join of time series
+    est.dat <- merge(rld, rlu, emis, ta, all=FALSE, join="inner")
+    fcorr <- with(est.dat,
+                  -(rld - rlu) / (emis * 5.670367E-8 * (ta + 273.15)))
+
+    # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
+    rsd <- read.delim(grfile, sep="\t")
+    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
+    rx <- read.delim(rxfile, sep="\t")
+    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
+    est.dat <- merge(fcorr, rsd, rx, all=FALSE, join="inner")
+    ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
+          as.numeric(format(index(est.dat), "%H")) > 7 &
+          est.dat$rx != 0
+    rsdmax <- (radex_a + radex_b) * est.dat$rx[ix]
+    fcorr.mod <- with(est.dat[ix, ],
+                      lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+
+    # return parameters
+    return(c(coef(fcorr.mod)[1],  # fcorr_a
+             coef(fcorr.mod)[2]))  # fcorr_b
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
@@ -191,13 +213,14 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       lines(rnet.night, col=2)
       plot(heat.ratio.night, ylab="soil heat/net radiation", main="night")
     }
+
     # return parameters
-    c(mean(c(abs(sheat.day) / abs(rnet.day)), na.rm=T),  # f_day
-      mean(c(abs(sheat.night) / c(rnet.night)), na.rm=T))  # f_night
+    return(c(mean(c(abs(sheat.day) / abs(rnet.day)), na.rm=T),  # f_day
+             mean(c(abs(sheat.night) / c(rnet.night)), na.rm=T)))  # f_night
 
   } else {
     
-    stop("Unknown parameter name! Possible choices: radex*, fcorr*, f*, emis*, alb.")
+    stop("Unknown parameter name. Possible choices: radex*, fcorr*, f*, emis*, alb.")
   
   }
   
