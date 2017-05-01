@@ -1,9 +1,11 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-28
+# Last Edit: 2017-04-30
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
+# TODO(2017-04-30): fcorr_a + fcorr_b should be 1
+# TODO(2017-04-30): finish estimation of alb
 ################################################################################
 
 rm(list=ls())
@@ -482,35 +484,36 @@ rough_bare <- .01
 rss_a <- 37.5  # calibration...
 rss_b <- -1.23  # calibration...
 
+path.meteo <- paste0("~/uni/projects/evap_portugal/data/forcing/",
+                     "meteo/05_meteofill/out/", field.station, "/")
+path.proj <- paste0("~/uni/projects/")
+
 # estimate f_day & f_night from soil heat flux and net radiation
 # ... Remember to run the rad_net_* engine first!
 if (output != "rad_net") {
   f.out <- echseParEst("f",
-                       rnetfile=paste0("~/uni/projects/rad_net_portugal/run",
-                                       "/out/", field.station,
-                                       "/test1.txt"),
-                       sheatfile=paste0("~/uni/projects/evap_portugal",
-                                        "/data/forcing/meteo/05_meteofill/out/",
-                                        field.station, "/soilheat_data.dat"),
-                       lat=lat, lon=lon, plots=F)
+                       rnetfile=paste0(path.proj, "rad_net_portugal/run/out/",
+                                       field.station, "/test1.txt"),
+                       sheatfile=paste0(path.meteo, "soilheat_data.dat"),
+                       lat=lat, lon=lon, plots=FALSE)
   f_day <- f.out[1]
   f_night <- f.out[2]
 }
 
+#debugonce(echseParEst)
+
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
 fcorr.out <- echseParEst("fcorr",
-                         tafile=paste0("~/uni/projects/evap_portugal",
-                                       "/data/forcing/meteo/05_meteofill/out/",
-                                       field.station, "/temper_data.dat"),
                          rldfile="~/boxup/whk_echse/data/portugal/Ldown",
                          rlufile="~/boxup/whk_echse/data/portugal/Lup",
-                         grfile=paste0("~/uni/projects/evap_portugal",
-                                       "/data/forcing/meteo/05_meteofill/out/",
-                                       field.station, "/glorad_data.dat"),
-                         rxfile=paste0("~/uni/projects/radex_portugal",
-                                       "/run/out/", field.station,
-                                       "/test1.txt"))
+                         grfile=paste0(path.meteo, "glorad_data.dat"),
+                         hrfile=paste0(path.meteo, "rhum_data.dat"),
+                         rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                                       field.station, "/test1.txt"),
+                         tafile=paste0(path.meteo, "temper_data.dat"),
+                         emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
+                         radex_b=radex_b, emismeth="brunt", plots=TRUE)
 fcorr_a <- fcorr.out[1]
 fcorr_b <- fcorr.out[2]
 
@@ -518,12 +521,9 @@ fcorr_b <- fcorr.out[2]
 # ... Remember to run the radex_* engine first!
 if (output != "radex") {
   radex.out <- echseParEst("radex",
-                           rxfile=paste0("~/uni/projects/radex_portugal",
-                                         "/run/out/", field.station,
-                                         "/test1.txt"),
-                           grfile=paste0("~/uni/projects/evap_portugal",
-                                         "/data/forcing/meteo/05_meteofill/out/",
-                                         field.station, "/glorad_data.dat"),
+                           rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                                         field.station, "/test1.txt"),
+                           grfile=paste0(path.meteo, "glorad_data.dat"),
                            r.quantile=0.05, plots=T)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
@@ -580,7 +580,7 @@ print.xtable(sharedParamNum.tex,
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai)
 
 # estimate albedo from short-wave incoming and outgoing radiation
-alb <- echseParEst("alb", rsufile="~/
+alb <- echseParEst("alb", rsufile="~/")
 
 
 ix.alb <- which(rads.down != 0 & rads.up != 0 &

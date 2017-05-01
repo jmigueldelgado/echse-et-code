@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-29
+# Last Edit: 2017-04-30
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -11,6 +11,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                                   # [radex_[a/b], fcorr_[a/b], emis_[a/b],
                                   # f_[day/night], alb]
                         grfile = NA,  # file with global radiation data*
+                        hrfile = NA,  # file with relative humidity
                         rnetfile = NA,  # file with net radiation data*
                         rldfile = NA,  # file with downward lw rad. data*
                         rlufile = NA,  # file with upward lw rad. data*
@@ -19,12 +20,15 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         sheatfile = NA,  # file with soil heat flux data*
                         tafile = NA,  # file with mean air temperature data*
                                       # *Supply complete file path!
+                        emis_a = NA,  # net emissivity coefficient
+                        emis_b = NA,  # ditto
                         lat = 0,  # latitude for calculating sunrise/-set
                         lon = 0,  # longitude for... ditto
                         radex_a = NA,  # parameter for estimating fcorr_*
                         radex_b = NA,  # ditto
                         r.quantile = 0.05,  # lower quantile for min rad.ratio
-                        plots = T  # plots for visual diagnosis?
+                        emismeth = NA,  # emissivity method [brunt, idso]
+                        plots = TRUE  # plots for visual diagnosis?
                         ) {
 
   if (length(grep("alb", parname)) != 0) {
@@ -131,35 +135,51 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # (Maidment 1993; Idso & Jackson 1969)
     ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
-    emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta[, 2]^2),
-                order.by=as.POSIXct(ta[, 1], tz="UTC"))
+    if (emismeth == "idso") {
+      emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
+                  order.by=index(ta))
+    } else if (emismeth == "brunt") {
+      hr <- read.delim(hrfile, sep="\t")
+      hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
+      # "Magnus equation" for saturated vap pressure, ECHSE source code
+      vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
+      emis <- emis_a + emis_b * sqrt(vap)
+    } else {
+      stop("Unknown emismeth! Choose either 'idso' or 'brunt'.")
+    }
 
     # calculate fcorr (adapted Stefan-Boltzmann law)
     rld <- readRDS(rldfile)  # downward lw radiation
-    rld <- xts(rld[, 2], order.by=as.POSIXct(rld[, 1], tz="UTC"))
     rlu <- readRDS(rlufile)  # upward lw radiation
-    rlu <- xts(rlu[, 2], order.by=as.POSIXct(rlu[, 1], tz="UTC"))
     # make inner join of time series
-    est.dat <- merge(rld, rlu, emis, ta, all=FALSE, join="inner")
+    est.dat <- merge(rld, rlu, emis, ta, all=FALSE)
+    plot(as.numeric(est.dat$ta), as.numeric(est.dat$rld - est.dat$rlu))
+    plot(as.numeric(est.dat$emis), as.numeric(est.dat$rld - est.dat$rlu))
+    plot(as.numeric(est.dat$ta), as.numeric(est.dat$emis))
     fcorr <- with(est.dat,
-                  -(rld - rlu) / (emis * 5.670367E-8 * (ta + 273.15)))
+                  -(rld - rlu) / (emis * 5.670367E-8 * (ta + 273.15) ^ 4))
 
     # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
     rsd <- read.delim(grfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
-    est.dat <- merge(fcorr, rsd, rx, all=FALSE, join="inner")
+    est.dat <- merge(fcorr, rsd, rx, all=FALSE)
+    names(est.dat)[1] <- "fcorr"
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rx != 0
-    rsdmax <- (radex_a + radex_b) * est.dat$rx[ix]
-    fcorr.mod <- with(est.dat[ix, ],
-                      lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+    est.dat$rsdmax <- (radex_a + radex_b) * est.dat$rx
+    mod <- with(est.dat,
+                lm(as.numeric(fcorr[ix]) ~ as.numeric(rsd[ix] / rsdmax[ix])))
+    if (plots) {
+      with(est.dat[ix, ], plot(as.numeric(rsd / rsdmax), as.numeric(fcorr)))
+      abline(mod, col=4)
+    }
 
     # return parameters
-    return(c(coef(fcorr.mod)[1],  # fcorr_a
-             coef(fcorr.mod)[2]))  # fcorr_b
+    return(c(coef(mod)[1],  # fcorr_a
+             coef(mod)[2]))  # fcorr_b
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
