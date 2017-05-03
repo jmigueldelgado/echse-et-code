@@ -1,10 +1,11 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-03
+# Last Edit: 2017-05-04
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, f_*, fcorr_*, emis_*, radex_*
+# TODO(2017-05-03): emismeth == "both"!
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -130,45 +131,93 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
     if (emismeth == "idso") {
+    # method from Idso & Jackson 1969; adapted by Maidment 1993
       emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
                   order.by=index(ta))
     } else if (emismeth == "brunt") {
+    # method from Brunt 1932
       hr <- read.delim(hrfile, sep="\t")
       hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
-      # "Magnus equation" for saturated vap pressure, ECHSE source code
+      # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
       vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
-      emis <- emis_a + emis_b * sqrt(vap)
+      emis <- emis_a + emis_b * sqrt(vap / 10)
+    } else if {emismeth == "both") {
+    # both methods for comparison
+      emis.idso <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
+                       order.by=index(ta))
+      hr <- read.delim(hrfile, sep="\t")
+      hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
+      # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
+      vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
+      emis.brunt <- emis_a + emis_b * sqrt(vap / 10)
     } else {
-      stop("Unknown emismeth! Choose either 'idso' or 'brunt'.")
+      stop("Unknown emismeth! Choose either 'idso' or 'brunt' or 'both'.")
     }
 
     # calculate fcorr (adapted Stefan-Boltzmann law)
     rld <- readRDS(rldfile)  # downward lw radiation
     rlu <- readRDS(rlufile)  # upward lw radiation
+    sig <- 5.670367E-8  # Stefan constant
     # make inner join of time series
     est.dat <- merge(rld, rlu, emis, ta, all=FALSE)
     plot(as.numeric(est.dat$ta), as.numeric(est.dat$rld - est.dat$rlu))
     plot(as.numeric(est.dat$emis), as.numeric(est.dat$rld - est.dat$rlu))
     plot(as.numeric(est.dat$ta), as.numeric(est.dat$emis))
     fcorr <- with(est.dat,
-                  -(rld - rlu) / (emis * 5.670367E-8 * (ta + 273.15) ^ 4))
+                  -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
+    if (emismeth == "both") {
+      fcorr.brunt <- with(est.dat,
+                          -(rld - rlu) / (emis.brunt * sig * (ta + 273.15) ^ 4))
+      fcorr.idso <- with(est.dat,
+                         -(rld - rlu) / (emis.idso * sig * (ta + 273.15) ^ 4))
+    }
 
     # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
     rsd <- read.delim(grfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
-    est.dat <- merge(fcorr, rsd, rx, all=FALSE)
-    names(est.dat)[1] <- "fcorr"
+    if (emismeth == "both") {
+      est.dat <- merge(fcorr.brunt, fcorr.idso, rsd, rx, all=FALSE)
+      names(est.dat)[1:2] <- c("fcorr.brunt", "fcorr.idso")
+    } else {
+      est.dat <- merge(fcorr, rsd, rx, all=FALSE)
+      names(est.dat)[1] <- "fcorr"
+    }
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rx != 0
     est.dat$rsdmax <- (radex_a + radex_b) * est.dat$rx
-    mod <- with(est.dat,
-                lm(as.numeric(fcorr[ix]) ~ as.numeric(rsd[ix] / rsdmax[ix])))
+    if (emismeth == "both") {
+      mod.brunt <- with(est.dat[ix],
+                        lm(as.numeric(fcorr.brunt) ~ as.numeric(rsd / rsdmax)))
+      mod.idso <- with(est.dat[ix],
+                       lm(as.numeric(fcorr.idso) ~ as.numeric(rsd / rsdmax)))
+    } else {
+      mod <- with(est.dat[ix],
+                  lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+    }
     if (plots) {
-      with(est.dat[ix, ], plot(as.numeric(rsd / rsdmax), as.numeric(fcorr)))
-      abline(mod, col=4)
+      if (emismeth == "both") {
+        with(est.dat[ix],
+             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
+                  main="brunt"))
+        abline(mod.brunt)
+        with(est.dat[ix],
+             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.idso),
+                  main="idso"))
+        abline(mod.idso)
+      } else {
+        with(est.dat[ix], plot(as.numeric(rsd / rsdmax), as.numeric(fcorr)))
+        abline(mod, col=4)
+      }
+    }
+
+    # data frame for comparison between methods
+    if (emismeth == "both") {
+      df <- data.frame(Method=c("Brunt", "Idso \& Jackson"),
+                       Emissivity=c(emis.brunt, emis.idso),
+                       fcorr_a=c(fcorr_a))
     }
 
     # return parameters
