@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-30
+# Last Edit: 2017-05-03
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -35,25 +35,19 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   # albedo
 
     # read global radiation
-    gr <- read.delim(grfile, sep="\t")
-    gr.xts <- xts(gr[, 2], order.by=as.POSIXct(gr[, 1], tz="UTC"))
+    rsd <- read.delim(grfile, sep="\t")
+    rsd <- xts(gr[, 2], order.by=as.POSIXct(gr[, 1], tz="UTC"))
     # read upward short-wave radiation
-    rsu <- read.delim(rsufile, sep="\t")
-    rsu.xts <- xts(rsu[, 2], order.by=as.POSIXct(rsu[, 1], tz="UTC"))
+    rsu <- readRDS(rsufile)
     # select common time window
-    tstart <- max(index(gr.xts)[1], index(rsu.xts)[1])
-    tend <- min(tail(index(gr.xts), 1), tail(index(rsu.xts), 1))
-    gr.full <- gr.xts[paste0(tstart, "/", tend)]
-    rsu.full <- rsu.xts[paste0(tstart, "/", tend)]
+    est.dat <- merge(rsd, rsu, join="inner")
+    names(est.dat) <- c("rsd", "rsu")
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
     # and to times where gr & rsu != 0
-    gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 17 &
-                  as.numeric(format(index(gr.full), "%H")) > 7 &
-                  gr.xts != 0 & rsu.xts != 0]
-    rsu <- rsu.full[as.numeric(format(index(gr.full), "%H")) < 17 &
-                    as.numeric(format(index(gr.full), "%H")) > 7 &
-                    gr.xts != 0 & rsu.xts != 0]
-    alb.series <- gr / rsu
+    ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
+          as.numeric(format(index(est.dat), "%H")) > 7 &
+          est.dat$rsd != 0 & est.dat$rsu != 0
+    alb.series <- with(est.dat, gr[ix] / rsu[ix])
     # diagnostic plot
     if (plots)
       plot(apply.daily(alb.series[alb.series < 1], mean))

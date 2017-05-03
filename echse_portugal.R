@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-04-30
+# Last Edit: 2017-05-03
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -580,7 +580,9 @@ print.xtable(sharedParamNum.tex,
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai)
 
 # estimate albedo from short-wave incoming and outgoing radiation
-alb <- echseParEst("alb", rsufile="~/")
+# TODO(2017-05-03): finish here
+alb <- echseParEst("alb", grfile=paste0(path.meteo, "glorad_data.dat"),
+                   rsufile=paste0(""))
 
 
 ix.alb <- which(rads.down != 0 & rads.up != 0 &
