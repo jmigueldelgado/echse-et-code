@@ -4,8 +4,7 @@
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
-#      Works for alb, f_*, fcorr_*, emis_*, radex_*
-# TODO(2017-05-03): emismeth == "both"!
+#      Works for alb, emis_*, f_*, fcorr_*, radex_*
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -28,7 +27,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         radex_a = NA,  # parameter for estimating fcorr_*
                         radex_b = NA,  # ditto
                         r.quantile = 0.05,  # lower quantile for min rad.ratio
-                        emismeth = NA,  # emissivity method [brunt, idso]
+                        emismeth = NA,  # emissivity method [Brunt, Idso, both]
                         plots = TRUE  # plots for visual diagnosis?
                         ) {
 
@@ -130,18 +129,19 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # (Maidment 1993; Idso & Jackson 1969)
     ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
-    if (emismeth == "idso") {
+    if (emismeth == "Idso") {
     # method from Idso & Jackson 1969; adapted by Maidment 1993
       emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
                   order.by=index(ta))
-    } else if (emismeth == "brunt") {
+    } else if (emismeth == "Brunt") {
     # method from Brunt 1932
       hr <- read.delim(hrfile, sep="\t")
       hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
       # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
       vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
+      # Brunt equation uses vap in kPa
       emis <- emis_a + emis_b * sqrt(vap / 10)
-    } else if {emismeth == "both") {
+    } else if (emismeth == "both") {
     # both methods for comparison
       emis.idso <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
                        order.by=index(ta))
@@ -149,6 +149,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
       # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
       vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
+      # Brunt equation uses vap in kPa
       emis.brunt <- emis_a + emis_b * sqrt(vap / 10)
     } else {
       stop("Unknown emismeth! Choose either 'idso' or 'brunt' or 'both'.")
@@ -159,10 +160,34 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     rlu <- readRDS(rlufile)  # upward lw radiation
     sig <- 5.670367E-8  # Stefan constant
     # make inner join of time series
-    est.dat <- merge(rld, rlu, emis, ta, all=FALSE)
-    plot(as.numeric(est.dat$ta), as.numeric(est.dat$rld - est.dat$rlu))
-    plot(as.numeric(est.dat$emis), as.numeric(est.dat$rld - est.dat$rlu))
-    plot(as.numeric(est.dat$ta), as.numeric(est.dat$emis))
+    if (emismeth == "both") {
+      est.dat <- merge(rld, rlu, emis.brunt, emis.idso, ta, all=FALSE)
+    } else {
+      est.dat <- merge(rld, rlu, emis, ta, all=FALSE)
+    }
+    if (plots) {
+      with(est.dat, plot(as.numeric(ta), as.numeric(rld - rlu),
+                         main=emismeth,
+                         xlab=expression("Mean air temperature"~({}^o~C)),
+                         ylab=expression("Net LW radiation"~(W~m^{-2}))))
+      if (emismeth == "both") {
+        par(mfrow=c(2, 1))
+        with(est.dat,
+             plot(as.numeric(emis.brunt), as.numeric(rld - rlu), main="Brunt",
+                  xlab="Net emissivity",
+                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+        with(est.dat,
+             plot(as.numeric(emis.idso), as.numeric(rld - rlu),
+                  main="Idso \& Jackson", xlab="Net emissivity",
+                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+      } else {
+        par(mfrow=c(1, 1))
+        with(est.dat,
+             plot(as.numeric(emis), as.numeric(rld - rlu),
+                  main=emismeth, xlab="Net emissivity",
+                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+      }
+    }
     fcorr <- with(est.dat,
                   -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
     if (emismeth == "both") {
@@ -199,16 +224,22 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
     if (plots) {
       if (emismeth == "both") {
+        par(mfrow=c(2, 1))
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
-                  main="brunt"))
-        abline(mod.brunt)
+                  main="Brunt", xlab=expression(R_{inS}/R_{inS,cs}),
+                  ylab="fcorr"))
+        abline(mod.brunt, col=4)
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.idso),
-                  main="idso"))
-        abline(mod.idso)
+                  main="Idso", xlab=expression(R_{inS}/R_{inS,cs}),
+                  ylab="fcorr"))
+        abline(mod.idso, col=4)
       } else {
-        with(est.dat[ix], plot(as.numeric(rsd / rsdmax), as.numeric(fcorr)))
+        with(est.dat[ix],
+             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr),
+                  main=emismeth, xlab=expression(R_{inS}/R_{inS,cs}),
+                  ylab="fcorr"))
         abline(mod, col=4)
       }
     }
@@ -216,13 +247,23 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # data frame for comparison between methods
     if (emismeth == "both") {
       df <- data.frame(Method=c("Brunt", "Idso \& Jackson"),
-                       Emissivity=c(emis.brunt, emis.idso),
-                       fcorr_a=c(fcorr_a))
+                       fcorr_a=c(as.numeric(coef(mod.brunt)[1]),
+                                 as.numeric(coef(mod.idso)[1])),
+                       fcorr_b=c(as.numeric(coef(mod.brunt)[2]),
+                                 as.numeric(coef(mod.idso)[2])))
     }
 
     # return parameters
-    return(c(coef(mod)[1],  # fcorr_a
-             coef(mod)[2]))  # fcorr_b
+    if (emismeth == "both") {
+      return(data.frame(Method=c("Brunt", "Idso \& Jackson"),
+                        fcorr_a=c(as.numeric(coef(mod.brunt)[1]),
+                                  as.numeric(coef(mod.idso)[1])),
+                        fcorr_b=c(as.numeric(coef(mod.brunt)[2]),
+                                  as.numeric(coef(mod.idso)[2]))))
+    } else {
+      return(c(coef(mod)[1],  # fcorr_a
+               coef(mod)[2]))  # fcorr_b
+    }
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
