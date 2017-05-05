@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-03
+# Last Edit: 2017-05-05
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -505,15 +505,15 @@ if (output != "rad_net") {
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
 fcorr.out <- echseParEst("fcorr",
-                         rldfile="~/boxup/whk_echse/data/portugal/Ldown",
-                         rlufile="~/boxup/whk_echse/data/portugal/Lup",
+                         rldfile="data/portugal/Ldown",
+                         rlufile="data/portugal/Lup",
                          grfile=paste0(path.meteo, "glorad_data.dat"),
                          hrfile=paste0(path.meteo, "rhum_data.dat"),
                          rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                        field.station, "/test1.txt"),
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
-                         radex_b=radex_b, emismeth="brunt", plots=TRUE)
+                         radex_b=radex_b, emismeth="Brunt", plots=TRUE)
 fcorr_a <- fcorr.out[1]
 fcorr_b <- fcorr.out[2]
 
@@ -524,7 +524,7 @@ if (output != "radex") {
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          field.station, "/test1.txt"),
                            grfile=paste0(path.meteo, "glorad_data.dat"),
-                           r.quantile=0.05, plots=T)
+                           r.quantile=0.05, plots=FALSE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }
@@ -582,7 +582,7 @@ print.xtable(sharedParamNum.tex,
 # estimate albedo from short-wave incoming and outgoing radiation
 # TODO(2017-05-03): finish here
 alb <- echseParEst("alb", grfile=paste0(path.meteo, "glorad_data.dat"),
-                   rsufile=paste0(""))
+                   rsufile=paste0("data/portugal/Kup"), plots=TRUE)
 
 
 ix.alb <- which(rads.down != 0 & rads.up != 0 &
