@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-05
+# Last Edit: 2017-05-07
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -36,7 +36,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     # read global radiation
     rsd <- read.delim(grfile, sep="\t")
-    rsd <- xts(gr[, 2], order.by=as.POSIXct(gr[, 1], tz="UTC"))
+    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     # read upward short-wave radiation
     rsu <- readRDS(rsufile)
     # select common time window
@@ -47,10 +47,14 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rsd != 0 & est.dat$rsu != 0
-    alb.series <- with(est.dat, rsd[ix] / rsu[ix])
+    alb.series <- with(est.dat, rsu[ix] / rsd[ix])
     # diagnostic plot
-    if (plots)
-      plot(apply.daily(alb.series[alb.series < 1], mean))
+    if (plots) {
+      pdf("doku/plot_alb.pdf", width=6, height=4)
+      plot(apply.daily(alb.series[alb.series < 1], mean),
+           ylab=expression(mu), main="", type="p", pch=20)
+      dev.off()
+    }
     alb <- mean(alb.series[alb.series < 1])
     return(alb)
 
@@ -173,15 +177,18 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                          xlab=expression("Mean air temperature"~({}^o~C)),
                          ylab=expression("Net LW radiation"~(W~m^{-2}))))
       if (emismeth == "both") {
-        par(mfrow=c(2, 1))
+        par(mfrow=c(2, 1), mar=c(1, 5, 2, 1))
         with(est.dat,
-             plot(as.numeric(emis.brunt), as.numeric(rld - rlu), main="Brunt",
-                  xlab="Net emissivity",
-                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+             plot(as.numeric(emis.brunt), as.numeric(rld - rlu), xaxt="n",
+                  main="", xlab="Net emissivity",
+                  ylab=expression(Net~LW~radiation~(W~m^{-2}))))
+        text(0.22, -80, "Brunt")
+        par(mar=c(5, 5, 0, 1))
         with(est.dat,
              plot(as.numeric(emis.idso), as.numeric(rld - rlu),
-                  main="Idso & Jackson", xlab="Net emissivity",
-                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+                  main="", xlab="Net emissivity",
+                  ylab=expression(Net~LW~radiation~(W~m^{-2}))))
+        text(0.18, -80, "Idso & Jackson")
       } else {
         par(mfrow=c(1, 1))
         with(est.dat,
@@ -190,13 +197,14 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                   ylab=expression("Net LW radiation"~(W~m^{-2}))))
       }
     }
-    fcorr <- with(est.dat,
-                  -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
     if (emismeth == "both") {
       fcorr.brunt <- with(est.dat,
                           -(rld - rlu) / (emis.brunt * sig * (ta + 273.15) ^ 4))
       fcorr.idso <- with(est.dat,
                          -(rld - rlu) / (emis.idso * sig * (ta + 273.15) ^ 4))
+    } else {
+      fcorr <- with(est.dat,
+                    -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
     }
 
     # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
@@ -226,17 +234,22 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
     if (plots) {
       if (emismeth == "both") {
-        par(mfrow=c(2, 1))
+        pdf("doku/plot_fcorr_both.pdf")
+        par(mfrow=c(2, 1), mar=c(3, 4, 1, 1))
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
-                  main="Brunt", xlab=expression(R[inS]/R[inS,cs]),
-                  ylab="fcorr"))
+                  xaxt="n", main="", xlab="", ylab="fcorr"))
+        axis(1, at=seq(0, 1, 0.2), labels=seq(0, 1, 0.2))
         abline(mod.brunt, col=4)
+        text(0.5, 1.2, "emis: Brunt")
+        par(mar=c(4, 4, 0, 1))
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.idso),
-                  main="Idso", xlab=expression(R[inS]/R[inS,cs]),
+                  main="", xlab=expression(R[inS]/R[inS,cs]),
                   ylab="fcorr"))
         abline(mod.idso, col=4)
+        text(0.5, 1.3, "emis: Idso & Jackson")
+        dev.off()
       } else {
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr),

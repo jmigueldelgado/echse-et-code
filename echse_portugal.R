@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-05
+# Last Edit: 2017-05-07
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -513,7 +513,7 @@ fcorr.out <- echseParEst("fcorr",
                                        field.station, "/test1.txt"),
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
-                         radex_b=radex_b, emismeth="Brunt", plots=TRUE)
+                         radex_b=radex_b, emismeth="both", plots=TRUE)
 fcorr_a <- fcorr.out[1]
 fcorr_b <- fcorr.out[2]
 
@@ -579,21 +579,8 @@ print.xtable(sharedParamNum.tex,
 
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai)
 
-# estimate albedo from short-wave incoming and outgoing radiation
-# TODO(2017-05-03): finish here
 alb <- echseParEst("alb", grfile=paste0(path.meteo, "glorad_data.dat"),
                    rsufile=paste0("data/portugal/Kup"), plots=TRUE)
-
-
-ix.alb <- which(rads.down != 0 & rads.up != 0 &
-                  as.numeric(format(index(rads.down), "%H")) > 8 &
-                  as.numeric(format(index(rads.down), "%H")) < 16)
-alb.times <- index(rads.down[ix.alb])
-alb.series <- rads.up[alb.times] / rads.down[alb.times]
-alb.10min.mean <- mean(alb.series[alb.series < 1])
-alb.daily.mean <- mean(apply.daily(alb.series[alb.series < 1], mean))
-# diagnostic plot of alb.series
-plot(apply.daily(alb.series[alb.series < 1], mean))
 cano_height <- ifelse(field.station=="NSA", 7.98, 0.20)
 lai <- ifelse(field.station == "NSA", 1.397, 0.778)
 
