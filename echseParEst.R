@@ -1,10 +1,11 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-07
+# Last Edit: 2017-05-09
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
+# TODO(2017-05-09): resume at fcorr_a, b estimation from lmodels (L22x)
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -173,9 +174,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
     if (plots) {
       with(est.dat, plot(as.numeric(ta), as.numeric(rld - rlu),
-                         main=emismeth,
-                         xlab=expression("Mean air temperature"~({}^o~C)),
-                         ylab=expression("Net LW radiation"~(W~m^{-2}))))
+           main="", xlab=expression("Mean air temperature"~({}^o~C)),
+           ylab=expression("Net LW radiation"~(W~m^{-2}))))
       if (emismeth == "both") {
         par(mfrow=c(2, 1), mar=c(1, 5, 2, 1))
         with(est.dat,
@@ -224,8 +224,13 @@ echseParEst <- function(parname,  # name of parameter group to estimate
           est.dat$rx != 0
     est.dat$rsdmax <- (radex_a + radex_b) * est.dat$rx
     if (emismeth == "both") {
-      mod.brunt <- with(est.dat[ix],
-                        lm(as.numeric(fcorr.brunt) ~ as.numeric(rsd / rsdmax)))
+      lm.brunt <- with(est.dat[ix],
+                       lm(as.numeric(fcorr.brunt) ~ as.numeric(rsd / rsdmax)))
+      isct.brunt <- coef(lm.brunt)[1]
+      mod.brunt <- lm(c(isct.brunt, 1) ~ c(0, 1))
+      # ...
+      # resume here
+      # ...
       mod.idso <- with(est.dat[ix],
                        lm(as.numeric(fcorr.idso) ~ as.numeric(rsd / rsdmax)))
     } else {
@@ -259,25 +264,16 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       }
     }
 
-    # data frame for comparison between methods
-    if (emismeth == "both") {
-      df <- data.frame(Method=c("Brunt", "Idso & Jackson"),
-                       fcorr_a=c(as.numeric(coef(mod.brunt)[1]),
-                                 as.numeric(coef(mod.idso)[1])),
-                       fcorr_b=c(as.numeric(coef(mod.brunt)[2]),
-                                 as.numeric(coef(mod.idso)[2])))
-    }
-
     # return parameters
     if (emismeth == "both") {
       return(data.frame(Method=c("Brunt", "Idso & Jackson"),
-                        fcorr_a=c(as.numeric(coef(mod.brunt)[1]),
-                                  as.numeric(coef(mod.idso)[1])),
-                        fcorr_b=c(as.numeric(coef(mod.brunt)[2]),
-                                  as.numeric(coef(mod.idso)[2]))))
+                        a=c(as.numeric(coef(mod.brunt)[1]),
+                            as.numeric(coef(mod.idso)[1])),
+                        b=c(as.numeric(coef(mod.brunt)[2]),
+                            as.numeric(coef(mod.idso)[2]))))
     } else {
-      return(c(as.numeric(coef(mod)[1]),  # fcorr_a
-               as.numeric(coef(mod)[2])))  # fcorr_b
+      return(data.frame(a=as.numeric(coef(mod)[2]),  # fcorr_a
+                        b=as.numeric(coef(mod)[1])))  # fcorr_b
     }
 
   } else if (length(grep("emis", parname)) != 0) {

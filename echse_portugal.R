@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-07
+# Last Edit: 2017-05-09
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -500,7 +500,7 @@ if (output != "rad_net") {
   f_night <- f.out[2]
 }
 
-#debugonce(echseParEst)
+debugonce(echseParEst)
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
@@ -514,8 +514,8 @@ fcorr.out <- echseParEst("fcorr",
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
                          radex_b=radex_b, emismeth="both", plots=TRUE)
-fcorr_a <- fcorr.out[1]
-fcorr_b <- fcorr.out[2]
+fcorr_a <- fcorr.out$a
+fcorr_b <- fcorr.out$b
 
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
