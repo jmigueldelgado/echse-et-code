@@ -1,11 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-09
+# Last Edit: 2017-05-10
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
-# TODO(2017-05-09): resume at fcorr_a, b estimation from lmodels (L22x)
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -226,21 +225,26 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     if (emismeth == "both") {
       lm.brunt <- with(est.dat[ix],
                        lm(as.numeric(fcorr.brunt) ~ as.numeric(rsd / rsdmax)))
+      lm.idso <- with(est.dat[ix],
+                      lm(as.numeric(fcorr.idso) ~ as.numeric(rsd / rsdmax)))
       isct.brunt <- coef(lm.brunt)[1]
+      isct.idso <- coef(lm.idso)[1]
+      # Force models to explain (x, y) == (1, 1)
+      # because fcorr_a + fcorr_b needs to = 1.
+      # Intersect of model taken from original linear regression.
       mod.brunt <- lm(c(isct.brunt, 1) ~ c(0, 1))
-      # ...
-      # resume here
-      # ...
-      mod.idso <- with(est.dat[ix],
-                       lm(as.numeric(fcorr.idso) ~ as.numeric(rsd / rsdmax)))
+      mod.idso <- lm(c(isct.idso, 1) ~ c(0, 1))
     } else {
-      mod <- with(est.dat[ix],
-                  lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+      lmod <- with(est.dat[ix], 
+                   lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+      # See previous comment.
+      mod <- lm(c(coef(lmod)[1], 1) ~ c(0, 1))
     }
     if (plots) {
       if (emismeth == "both") {
         pdf("doku/plot_fcorr_both.pdf")
-        par(mfrow=c(2, 1), mar=c(3, 4, 1, 1))
+        par(mfrow=c(4, 1), mar=c(3, 4, 1, 1))
+        # plot data with Brunt model
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
                   xaxt="n", main="", xlab="", ylab="fcorr"))

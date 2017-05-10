@@ -1,11 +1,9 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-09
+# Last Edit: 2017-05-10
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
-# TODO(2017-04-30): fcorr_a + fcorr_b should be 1
-# TODO(2017-04-30): finish estimation of alb
 ################################################################################
 
 rm(list=ls())
@@ -85,7 +83,7 @@ locs <- list(field.station,  # alb
              field.station,  # cano_height
              "any",  # cloud, not actually used
              "any",  # doy
-             "Met",  # glorad
+             field.station,  # glorad
              "any",  # glorad_max
              "any",  # hour
              field.station,  # lai
@@ -504,6 +502,8 @@ debugonce(echseParEst)
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
+# emismeth == "both" is used for direct comparison of emissivity methods.
+emismeth <- "both"
 fcorr.out <- echseParEst("fcorr",
                          rldfile="data/portugal/Ldown",
                          rlufile="data/portugal/Lup",
@@ -513,9 +513,18 @@ fcorr.out <- echseParEst("fcorr",
                                        field.station, "/test1.txt"),
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
-                         radex_b=radex_b, emismeth="both", plots=TRUE)
+                         radex_b=radex_b, emismeth=emismeth, plots=TRUE)
 fcorr_a <- fcorr.out$a
 fcorr_b <- fcorr.out$b
+
+if (emismeth == "both") {
+# In dubio, return Brunt coefficients because this is the favored model.
+  fcorr_a <- fcorr_a[1]
+  fcorr_b <- fcorr_b[1]
+}
+
+if (fcorr_a + fcorr_b != 1)
+  stop("The sum of fcorr_a and fcorr_b must equal 1!")
 
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
@@ -529,8 +538,6 @@ if (output != "radex") {
   radex_b <- radex.out[2]
 }
 
-if (fcorr_a + fcorr_b != 1)
-  stop("The sum of fcorr_a and fcorr_b must equal 1!")
 
 # collect shared parameters
 sharedParamNum <- list(choice_et=et.choice[2],
@@ -640,8 +647,8 @@ write.matrix(doy.df,
 # glorad (Global Radiation, W.m-2, AVER)
 echseInput(engine=engine,
            variable="glorad",
-           stn="Met",
-           column=3,
+           stn=field.station,
+           column=14,
            t.seq=time.seq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
