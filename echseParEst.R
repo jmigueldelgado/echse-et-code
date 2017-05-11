@@ -1,10 +1,11 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-10
+# Last Edit: 2017-05-11
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
+# TODO(2017-05-11): radex estimation: better method (new rsd data!)
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -62,31 +63,29 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   # radex parameters
 
     # read extraterrestrial radiation
-    radex <- read.delim(rxfile, sep="\t")
-    radex.xts <- xts(radex[, 2], order.by=as.POSIXct(radex[, 1], tz="UTC"))
+    rx <- read.delim(rxfile, sep="\t")
+    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
     # read global radiation input
-    glorad <- read.delim(grfile, sep="\t")
-    glorad.xts <- xts(glorad[, 2], order.by=as.POSIXct(glorad[, 1], tz="UTC"))
-    # select common time window
-    tstart <- max(index(radex.xts)[1], index(glorad.xts)[1])
-    tend <- min(tail(index(radex.xts), 1), tail(index(glorad.xts), 1))
-    rx.full <- radex.xts[paste0(tstart, "/", tend)]
-    gr.full <- glorad.xts[paste0(tstart, "/", tend)]
+    rsd <- read.delim(grfile, sep="\t")
+    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
+    # make inner join of time series
+    est.dat <- merge(rx, rsd, join="inner")
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
-    rx <- rx.full[as.numeric(format(index(rx.full), "%H")) < 17 &
-                  as.numeric(format(index(rx.full), "%H")) > 7]
-    gr <- gr.full[as.numeric(format(index(gr.full), "%H")) < 17 &
-                  as.numeric(format(index(gr.full), "%H")) > 7]
+    ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
+          as.numeric(format(index(est.dat), "%H")) > 7
     # calculate ratio of radex and glorad
-    rad.ratio <- as.numeric(gr) / as.numeric(rx)
+    rad.ratio <- with(est.dat[ix], as.numeric(rsd) / as.numeric(rx))
+    # ...
+    # resume here
+    # ...
     MaxRadRatio <- function(i) {
       out <- NA
-      if (any(as.numeric(format(index(rx), "%H")) == i))
-        rad.ratio2 <- rad.ratio[as.numeric(format(index(rx),
-                                           "%H")) == i]
-      if (exists("rad.ratio2"))
-        out <- max(rad.ratio2[which(rad.ratio2 < 1)], na.rm=T)
+      if (any(as.numeric(format(ix, "%H")) == i))
+        rad.ratio2 <- rad.ratio[as.numeric(format(ix, "%H")) == i]
+      if (exists("rad.ratio2")) {
+        out <- max(rad.ratio2[rad.ratio2 < 1], na.rm=T)
         return(out)
+      }
     }
     r.max <- max(sapply(6:18, MaxRadRatio), na.rm=T)
     # diagnostic plots
@@ -240,6 +239,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       # See previous comment.
       mod <- lm(c(coef(lmod)[1], 1) ~ c(0, 1))
     }
+    # suggested model by Shuttleworth in Maidment (1993)
+    mod.maid <- lm(c(-0.35, 1) ~ c(0, 1))
+
     if (plots) {
       if (emismeth == "both") {
         pdf("doku/plot_fcorr_both.pdf")
@@ -250,6 +252,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                   xaxt="n", main="", xlab="", ylab="fcorr"))
         axis(1, at=seq(0, 1, 0.2), labels=seq(0, 1, 0.2))
         abline(mod.brunt, col=4)
+        abline(mod.maid, lty="dashed", col=4)
+        legend("topleft", c("adapted regression", "Maidment (1993)"),
+               lty=c("solid", "dashed"), col=c(4, 4))
         text(0.5, 1.2, "emis: Brunt")
         par(mar=c(4, 4, 0, 1))
         with(est.dat[ix],
@@ -257,6 +262,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                   main="", xlab=expression(R[inS]/R[inS,cs]),
                   ylab="fcorr"))
         abline(mod.idso, col=4)
+        abline(mod.maid, lty="dashed", col=4)
+        legend("topleft", c("adapted regression", "Maidment (1993)"),
+               lty=c("solid", "dashed"), col=c(4, 4))
         text(0.5, 1.3, "emis: Idso & Jackson")
         dev.off()
       } else {
@@ -265,6 +273,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                   main=emismeth, xlab=expression(R[inS]/R[inS,cs]),
                   ylab="fcorr"))
         abline(mod, col=4)
+        abline(mod.maid, lty="dashed", col=4)
+        legend("topleft", c("adapted regression", "Maidment (1993)"),
+               lty=c("solid", "dashed"), col=c(4, 4))
       }
     }
 

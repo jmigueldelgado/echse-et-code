@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-10
+# Last Edit: 2017-05-11
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -500,6 +500,20 @@ if (output != "rad_net") {
 
 debugonce(echseParEst)
 
+# estimate radex_a, radex_b from global radiation and extraterr. radiation
+# ... Remember to run the radex_* engine first!
+if (output != "radex") {
+  radex.out <- echseParEst("radex",
+                           rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                                         field.station, "/test1.txt"),
+                           grfile=paste0(path.meteo, "glorad_data.dat"),
+                           r.quantile=0.05, plots=FALSE)
+  radex_a <- radex.out[1]
+  radex_b <- radex.out[2]
+}
+
+#debugonce(echseParEst)
+
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
 # emismeth == "both" is used for direct comparison of emissivity methods.
@@ -525,19 +539,6 @@ if (emismeth == "both") {
 
 if (fcorr_a + fcorr_b != 1)
   stop("The sum of fcorr_a and fcorr_b must equal 1!")
-
-# estimate radex_a, radex_b from global radiation and extraterr. radiation
-# ... Remember to run the radex_* engine first!
-if (output != "radex") {
-  radex.out <- echseParEst("radex",
-                           rxfile=paste0(path.proj, "radex_portugal/run/out/",
-                                         field.station, "/test1.txt"),
-                           grfile=paste0(path.meteo, "glorad_data.dat"),
-                           r.quantile=0.05, plots=FALSE)
-  radex_a <- radex.out[1]
-  radex_b <- radex.out[2]
-}
-
 
 # collect shared parameters
 sharedParamNum <- list(choice_et=et.choice[2],
