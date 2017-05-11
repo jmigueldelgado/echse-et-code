@@ -135,6 +135,10 @@ radl.down <- readRDS("data/portugal/Ldown")  # field station
 radl.up <- readRDS("data/portugal/Lup")      # ditto
 rads.down <- readRDS("data/portugal/Kdown")  # ditto
 rads.up <- readRDS("data/portugal/Kup")      # ditto
+index(radl.down) <- index(radl.down) + 3600
+index(radl.up) <- index(radl.up) + 3600
+index(rads.down) <- index(rads.down) + 3600
+index(rads.up) <- index(rads.up) + 3600
 # soil data at field stations
 soildata <- read.table("data/portugal/soildata.dat", header=T)
 # water content at field stations
@@ -502,7 +506,7 @@ if (output != "radex") {
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          field.station, "/test1.txt"),
                            grfile=paste0(path.meteo, "glorad_data.dat"),
-                           r.quantile=0.05, plots=FALSE)
+                           r.quantile=0.05, plots=TRUE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }

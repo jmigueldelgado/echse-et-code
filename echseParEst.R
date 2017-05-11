@@ -71,19 +71,20 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # make inner join of time series
     est.dat <- merge(rx, rsd, join="inner")
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
+    # and to times when rx != 0 and where rsd > 50 W.m-2
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
-          as.numeric(format(index(est.dat), "%H")) > 7
+          as.numeric(format(index(est.dat), "%H")) > 7 &
+          est.dat$rx != 0 & est.dat$rsd > 50
     # calculate ratio of rx and rsd
     rad.ratio <- with(est.dat[ix], as.numeric(rsd) / as.numeric(rx))
     # ...
     # resume here
     # ...
-    # time zone?
-    # ignore rsd observations below 50 W.m-2
     MaxRadRatio <- function(i) {
       out <- NA
-      if (any(as.numeric(format(ix, "%H")) == i))
-        rad.ratio2 <- rad.ratio[as.numeric(format(ix, "%H")) == i]
+      if (any(as.numeric(format(index(est.dat[ix]), "%H")) == i))
+        rad.ratio2 <- rad.ratio[as.numeric(format(index(est.dat[ix]),
+                                                  "%H")) == i]
       if (exists("rad.ratio2")) {
         out <- max(rad.ratio2[rad.ratio2 < 1], na.rm=T)
         return(out)
@@ -106,7 +107,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       # plot rad.ratio over hours of day to detect subdaily trends
       S <- FALSE
       repeat {
-        plot(as.numeric(format(index(rx), "%H")), rad.ratio, ylim=c(0, 1),
+        plot(as.numeric(format(index(rx[ix]), "%H")), rad.ratio, ylim=c(0, 1),
              xlab="hour of day", ylab="glorad/radex")
         abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
         if (S)
@@ -116,9 +117,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       }
       dev.off()
       # plot extraterr. and global radiation to detect time shifts
-      plot(rx.full, type="l", ylim=c(0, max(as.numeric(rx.full))),
+      plot(rx, type="l", ylim=c(0, max(as.numeric(rx))),
            xlab="date", ylab="rad (black: rx, red: gr)", main="")
-      lines(gr.full, col=2)
+      lines(rsd, col=2)
     }
     # return parameters
     out <- c(# radex_a
@@ -247,7 +248,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     if (plots) {
       if (emismeth == "both") {
         pdf("doku/plot_fcorr_both.pdf")
-        par(mfrow=c(4, 1), mar=c(3, 4, 1, 1))
+        par(mfrow=c(2, 1), mar=c(3, 4, 1, 1))
         # plot data with Brunt model
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
@@ -257,17 +258,17 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         abline(mod.maid, lty="dashed", col=4)
         legend("topleft", c("adapted regression", "Maidment (1993)"),
                lty=c("solid", "dashed"), col=c(4, 4))
-        text(0.5, 1.2, "emis: Brunt")
+        text(0.5, 1.2, "emis: Brunt (1932)")
         par(mar=c(4, 4, 0, 1))
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.idso),
-                  main="", xlab=expression(R[inS]/R[inS,cs]),
+                  main="", xlab=expression(R[inS]/R[inS*","*cs]),
                   ylab="fcorr"))
         abline(mod.idso, col=4)
         abline(mod.maid, lty="dashed", col=4)
         legend("topleft", c("adapted regression", "Maidment (1993)"),
                lty=c("solid", "dashed"), col=c(4, 4))
-        text(0.5, 1.3, "emis: Idso & Jackson")
+        text(0.5, 1.3, "emis: Idso & Jackson (1969)")
         dev.off()
       } else {
         with(est.dat[ix],
@@ -284,10 +285,10 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # return parameters
     if (emismeth == "both") {
       return(data.frame(Method=c("Brunt", "Idso & Jackson"),
-                        a=c(as.numeric(coef(mod.brunt)[1]),
-                            as.numeric(coef(mod.idso)[1])),
-                        b=c(as.numeric(coef(mod.brunt)[2]),
-                            as.numeric(coef(mod.idso)[2]))))
+                        a=c(as.numeric(coef(mod.brunt)[2]),
+                            as.numeric(coef(mod.idso)[2])),
+                        b=c(as.numeric(coef(mod.brunt)[1]),
+                            as.numeric(coef(mod.idso)[1]))))
     } else {
       return(data.frame(a=as.numeric(coef(mod)[2]),  # fcorr_a
                         b=as.numeric(coef(mod)[1])))  # fcorr_b
