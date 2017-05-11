@@ -204,11 +204,6 @@ tzone(HS.full) <- "UTC"
 tzone(NSA.full) <- "UTC"
 
 # rad data: remove duplicates, fill up missing dates, calculate hourly means
-radl.down <- radl.down[!duplicated(index(radl.down))]
-radl.up <- radl.up[!duplicated(index(radl.up))]
-rads.down <- rads.down[!duplicated(index(rads.down))]
-rads.up <- rads.up[!duplicated(index(rads.up))]
-
 RadPrep <- function(data) {
   seq.10min <- seq(index(data)[3], tail(index(data), 1), by="10 min")
   seq.1h <- seq(index(data)[3], tail(index(data), 1), by="hours")

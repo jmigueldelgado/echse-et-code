@@ -73,11 +73,13 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7
-    # calculate ratio of radex and glorad
+    # calculate ratio of rx and rsd
     rad.ratio <- with(est.dat[ix], as.numeric(rsd) / as.numeric(rx))
     # ...
     # resume here
     # ...
+    # time zone?
+    # ignore rsd observations below 50 W.m-2
     MaxRadRatio <- function(i) {
       out <- NA
       if (any(as.numeric(format(ix, "%H")) == i))
@@ -87,7 +89,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         return(out)
       }
     }
-    r.max <- max(sapply(6:18, MaxRadRatio), na.rm=T)
+    r.max <- max(sapply(8:16, MaxRadRatio), na.rm=T)
     # diagnostic plots
     if (plots) {
       # plot histogram of calculated ratios
