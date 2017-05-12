@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-11
+# Last Edit: 2017-05-12
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -497,7 +497,7 @@ if (output != "rad_net") {
   f_night <- f.out[2]
 }
 
-debugonce(echseParEst)
+#debugonce(echseParEst)
 
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
@@ -512,6 +512,19 @@ if (output != "radex") {
 }
 
 #debugonce(echseParEst)
+
+# compare emissivity models (Brunt vs. Idso-Jackson)
+# no estimation, functions returns suggested values from Maidment (1993)
+emis.out <- echseParEst("emis",
+                        grfile=paste0(path.meteo, "glorad_data.dat"),
+                        rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                                      field.station, "/test1.txt"),
+                        rldfile="data/portugal/Ldown",
+                        rlufile="data/portugal/Lup",
+                        tafile=paste0(path.meteo, "temper_data.dat"),
+                        hrfile=paste0(path.meteo, "rhum_data.dat"),
+                        radex_a=radex_a,
+                        radex_b=radex_b)
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!

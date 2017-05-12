@@ -1,11 +1,11 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-11
+# Last Edit: 2017-05-12
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
-# TODO(2017-05-11): radex estimation: better method (new rsd data!)
+# TODO(2017-05-12): L344 (emis estimation)
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -31,6 +31,35 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         emismeth = NA,  # emissivity method [Brunt, Idso, both]
                         plots = TRUE  # plots for visual diagnosis?
                         ) {
+
+  EmisBrunt <- function(emis_a,  # emissivity parameter a (intersect)
+                        emis_b,  # emissivity parameter b (slope)
+                        vap  # water vapor pressure, in kPa (!)
+                        ) {
+    # calculates net emissivity between ground and atmosphere
+    # after Brunt (1932)
+
+    return(emis_a + emis_b * sqrt(vap))
+  }
+
+  EmisIdso <- function(ta  # mean air temperature, in degC
+                       ) {
+
+    # calculates net emissivity between ground and atmosphere
+    # after Idso & Jackson (1969), modified by Maidment (1993)
+
+    return(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2))
+  }
+
+  VapMagnus <- function(ta,  # mean air temperature, in degC
+                        hr  # relative humidity, in %
+                        ) {
+
+    # calculates vapor pressure in hPa
+    # using the Magnus equation, see Dyck & Peschke
+
+    return(6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100)
+  }
 
   if (length(grep("alb", parname)) != 0) {
   # albedo
@@ -77,9 +106,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
           est.dat$rx != 0 & est.dat$rsd > 50
     # calculate ratio of rx and rsd
     rad.ratio <- with(est.dat[ix], as.numeric(rsd) / as.numeric(rx))
-    # ...
-    # resume here
-    # ...
+    # maximum ratio per hour
     MaxRadRatio <- function(i) {
       out <- NA
       if (any(as.numeric(format(index(est.dat[ix]), "%H")) == i))
@@ -132,31 +159,24 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   # fcorr parameters
 
     # calculate net emissivity between ground and atmosphere
-    # (Maidment 1993; Idso & Jackson 1969)
     ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
     if (emismeth == "Idso") {
-    # method from Idso & Jackson 1969; adapted by Maidment 1993
-      emis <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
-                  order.by=index(ta))
+      emis <- EmisIdso(ta)
     } else if (emismeth == "Brunt") {
-    # method from Brunt 1932
       hr <- read.delim(hrfile, sep="\t")
       hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
-      # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
-      vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
-      # Brunt equation uses vap in kPa
-      emis <- emis_a + emis_b * sqrt(vap / 10)
+      vap <- VapMagnus(ta, hr)
+      # vap in kPa!
+      emis <- EmisBrunt(0.34, -0.14, vap / 10)
     } else if (emismeth == "both") {
     # both methods for comparison
-      emis.idso <- xts(-0.02 + 0.261 * exp(-7.77E-4 * ta ^ 2),
-                       order.by=index(ta))
       hr <- read.delim(hrfile, sep="\t")
       hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
-      # "Magnus equation" for saturated vap pressure in hPa, Dyck & Peschke
-      vap <- 6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100
-      # Brunt equation uses vap in kPa
-      emis.brunt <- emis_a + emis_b * sqrt(vap / 10)
+      vap <- VapMagnus(ta, hr)
+      emis.idso <- EmisIdso(ta)
+      # vap in kPa!
+      emis.brunt <- EmisBrunt(0.34, -0.14, vap / 10)
     } else {
       stop("Unknown emismeth! Choose either 'Idso' or 'Brunt' or 'both'.")
     }
@@ -232,7 +252,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       isct.brunt <- coef(lm.brunt)[1]
       isct.idso <- coef(lm.idso)[1]
       # Force models to explain (x, y) == (1, 1)
-      # because fcorr_a + fcorr_b needs to = 1.
+      # because fcorr_a + fcorr_b must = 1.
       # Intersect of model taken from original linear regression.
       mod.brunt <- lm(c(isct.brunt, 1) ~ c(0, 1))
       mod.idso <- lm(c(isct.idso, 1) ~ c(0, 1))
@@ -296,6 +316,50 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
+  # requires: grfile, rxfile, rldfile, rlufile, tafile, hrfile, radex_a, radex_b
+
+    # read files
+    rsd <- read.delim(grfile, sep="\t")
+    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
+    rx <- read.delim(rxfile, sep="\t")
+    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
+    rsdmax <- (radex_a + radex_b) * rx
+    rld <- readRDS(rldfile)
+    rlu <- readRDS(rlufile)
+    ta <- read.delim(tafile, sep="\t")
+    ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
+    hr <- read.delim(hrfile, sep="\t")
+    hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
+
+    # calculate vapor pressure, Magnus equation
+    vap <- VapMagnus(ta, hr)    
+    est.dat <- merge(rsd, rsdmax, rx, rld, rlu, ta, vap, all=FALSE)
+    names(est.dat)[c(2, 7)] <- c("rsdmax", "vap")
+    sig <- 5.670367E-8  # Stefan constant
+
+    # compare "observed" emissivity with models of Brunt and Idso-Jackson:
+    # (1) select times when global radiation is approximately "clear-sky"
+    ix <- with(est.dat, rsd / rsdmax > .99 & rsd / rsdmax <= 1)
+    # (2) calculate net emissivity with Stefan-Boltzmann (f assumed to be 1)
+    # TODO(2017-05-12): check lw balance: emis is very low, maybe select from rl?
+    # ...
+    # resume here
+    # ...
+    est.dat$emis <- with(est.dat[ix],
+                         - (rld - rlu) / (sig * (ta + 273.15) ^ 4))
+    # (3) plot observation-based emissivity against models
+    pdf("doku/plot_emis_both.pdf", height=5, width=9)
+    par(mfrow=c(1, 2))
+    with(est.dat[ix],
+         plot(as.numeric(EmisBrunt(0.34, -0.14, est.dat[ix]$vap / 10)), emis,
+              xlab=expression(epsilon*", predicted by Brunt model"),
+              ylab=expression(epsilon*", derived from observations")))
+    lines(0:1, 0:1)
+    with(est.dat[ix],
+         plot(as.numeric(EmisIdso(est.dat[ix]$ta)), emis, ylab="",
+              xlab=expression(epsilon*", predicted by Idso-Jackson model")))
+    lines(0:1, 0:1)
+    dev.off()
 
     # It's not possible to estimate emis_a, emis_b from the available data.
     return(c(.34, -.14))
