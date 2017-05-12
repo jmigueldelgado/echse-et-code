@@ -6,13 +6,15 @@
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
 # TODO(2017-05-12): L344 (emis estimation)
+# TODO(2017-05-12): write functions for reading files & preparing time series;
+#                   currently merge() selects from 10-min data -> hourly means!
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
                                   # [radex_[a/b], fcorr_[a/b], emis_[a/b],
                                   # f_[day/night], alb]
                         grfile = NA,  # file with global radiation data*
-                        hrfile = NA,  # file with relative humidity
+                        hrfile = NA,  # file with relative humidity data*
                         rnetfile = NA,  # file with net radiation data*
                         rldfile = NA,  # file with downward lw rad. data*
                         rlufile = NA,  # file with upward lw rad. data*
@@ -67,8 +69,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # read global radiation
     rsd <- read.delim(grfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
-    # read upward short-wave radiation
+    # read upward short-wave radiation, hourly means
     rsu <- readRDS(rsufile)
+    rsu <- period.apply(rsu, endpoints(rsu, on="hours"), mean)
     # select common time window
     est.dat <- merge(rsd, rsu, join="inner")
     names(est.dat) <- c("rsd", "rsu")
@@ -183,7 +186,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     # calculate fcorr (adapted Stefan-Boltzmann law)
     rld <- readRDS(rldfile)  # downward lw radiation
+    rld <- period.apply(rld, endpoints(rld, on="hours"), mean)
     rlu <- readRDS(rlufile)  # upward lw radiation
+    rlu <- period.apply(rlu, endpoint(rlu, on="hours"), mean)
     sig <- 5.670367E-8  # Stefan constant
     # make inner join of time series
     if (emismeth == "both") {
@@ -324,7 +329,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
     rsdmax <- (radex_a + radex_b) * rx
-    rld <- readRDS(rldfile)
+    rld <- apply.period() readRDS(rldfile)
     rlu <- readRDS(rlufile)
     ta <- read.delim(tafile, sep="\t")
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))

@@ -511,7 +511,7 @@ if (output != "radex") {
   radex_b <- radex.out[2]
 }
 
-#debugonce(echseParEst)
+debugonce(echseParEst)
 
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, functions returns suggested values from Maidment (1993)
