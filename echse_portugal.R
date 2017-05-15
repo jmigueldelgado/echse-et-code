@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-12
+# Last Edit: 2017-05-15
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -497,7 +497,7 @@ if (output != "rad_net") {
   f_night <- f.out[2]
 }
 
-#debugonce(echseParEst)
+debugonce(echseParEst)
 
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!

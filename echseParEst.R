@@ -1,19 +1,18 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-12
+# Last Edit: 2017-05-15
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
 # TODO(2017-05-12): L344 (emis estimation)
-# TODO(2017-05-12): write functions for reading files & preparing time series;
-#                   currently merge() selects from 10-min data -> hourly means!
+# TODO(2017-05-15): check and apply functions
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
                                   # [radex_[a/b], fcorr_[a/b], emis_[a/b],
                                   # f_[day/night], alb]
-                        grfile = NA,  # file with global radiation data*
+                        rsdfile = NA,  # file with global radiation data*
                         hrfile = NA,  # file with relative humidity data*
                         rnetfile = NA,  # file with net radiation data*
                         rldfile = NA,  # file with downward lw rad. data*
@@ -46,7 +45,6 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   EmisIdso <- function(ta  # mean air temperature, in degC
                        ) {
-
     # calculates net emissivity between ground and atmosphere
     # after Idso & Jackson (1969), modified by Maidment (1993)
 
@@ -56,18 +54,53 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   VapMagnus <- function(ta,  # mean air temperature, in degC
                         hr  # relative humidity, in %
                         ) {
-
     # calculates vapor pressure in hPa
     # using the Magnus equation, see Dyck & Peschke
 
     return(6.11 * 10 ^ (7.5 * ta / (237.3 + ta)) * hr / 100)
   }
 
+  ReadToXts <- function(file  # path to file, 1st column POSIX-like dates,
+                              #               2nd column data
+                        ) {
+    # reads delimiter separated file and converts it to xts object
+
+    return(xts(read.delim(file)[, 2],
+               order.by=as.POSIXct(read.delim(file)[, 1])))
+  }
+
+  ReadToHlyMean <- function(file  # path to xts object
+                            ) {
+    # reads xts object (with sub-hourly data) and returns hourly means as xts
+
+    return(period.apply(readRDS(file), endpoints(readRDS(file), on="hours"),
+                        mean))
+  }
+
+  GenerateEstDat <- function(vars  # vector of variable names
+                             ) {
+    # generates common xts object of data required for parameter estimation
+
+    vars.ls <- list()
+    for i in 1:length(vars) {
+      if (vars[i] %in% c("rsd", "rsu", "rld", "rlu")) {
+        vars.ls[[i]] <- ReadToHlyMean(paste0(vars[i], "file"))
+      } else {
+        vars.ls[[i]] <- ReadToXts(paste0(vars[i], "file"))
+      }
+    }
+    # ...
+    # resume here
+    # ...
+    est.dat <- merge(...)
+    names(est.dat) <- vars
+  }
+
   if (length(grep("alb", parname)) != 0) {
   # albedo
 
     # read global radiation
-    rsd <- read.delim(grfile, sep="\t")
+    rsd <- read.delim(rsdfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     # read upward short-wave radiation, hourly means
     rsu <- readRDS(rsufile)
@@ -98,7 +131,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
     # read global radiation input
-    rsd <- read.delim(grfile, sep="\t")
+    rsd <- read.delim(rsdfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     # make inner join of time series
     est.dat <- merge(rx, rsd, join="inner")
@@ -234,7 +267,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
 
     # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
-    rsd <- read.delim(grfile, sep="\t")
+    rsd <- read.delim(rsdfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
@@ -321,15 +354,15 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
-  # requires: grfile, rxfile, rldfile, rlufile, tafile, hrfile, radex_a, radex_b
+  # requires: rsdfile, rxfile, rldfile, rlufile, tafile, hrfile, radex_a, radex_b
 
     # read files
-    rsd <- read.delim(grfile, sep="\t")
+    rsd <- read.delim(rsdfile, sep="\t")
     rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
     rx <- read.delim(rxfile, sep="\t")
     rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
     rsdmax <- (radex_a + radex_b) * rx
-    rld <- apply.period() readRDS(rldfile)
+#    rld <- apply.period() readRDS(rldfile)
     rlu <- readRDS(rlufile)
     ta <- read.delim(tafile, sep="\t")
     ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
