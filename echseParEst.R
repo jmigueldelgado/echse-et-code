@@ -1,12 +1,13 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-15
+# Last Edit: 2017-05-18
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
 # TODO(2017-05-12): L344 (emis estimation)
-# TODO(2017-05-15): check and apply functions
+# TODO(2017-05-18): radex: Error in error(x, ...) : 
+#                   improper length of one or more arguments to merge.xts
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -73,8 +74,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                             ) {
     # reads xts object (with sub-hourly data) and returns hourly means as xts
 
-    return(period.apply(readRDS(file), endpoints(readRDS(file), on="hours"),
-                        mean))
+    f <- readRDS(file)
+    ep <- endpoints(f, on="hours") + 1
+    return(period.apply(f, ep[-length(ep)], mean))
   }
 
   GenerateEstDat <- function(vars  # vector of variable names
@@ -84,33 +86,29 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     vars.ls <- list()
     for (i in 1:length(vars)) {
       if (vars[i] %in% c("rsd", "rsu", "rld", "rlu")) {
-        vars.ls[[i]] <- ReadToHlyMean(paste0(vars[i], "file"))
+        vars.ls[[i]] <- ReadToHlyMean(get(paste0(vars[i], "file")))
       } else {
-        vars.ls[[i]] <- ReadToXts(paste0(vars[i], "file"))
+        vars.ls[[i]] <- ReadToXts(get(paste0(vars[i], "file")))
       }
     }
-    # ...
-    # resume here
-    # ...
-    est.dat <- merge(vars.ls, all=FALSE)
-    names(est.dat) <- vars
-    return(est.dat)
+
+    est.dat <- vars.ls[[1]]
+    if (length(vars.ls) > 1) {
+      for (i in 2:length(vars))
+        est.dat <- merge(est.dat, vars.ls[[i]], join="inner")
+      names(est.dat) <- vars
+      return(est.dat)
+    }
   }
 
   if (length(grep("alb", parname)) != 0) {
   # albedo
+  # requires: rsd, rsu
 
-    # read global radiation
-    rsd <- read.delim(rsdfile, sep="\t")
-    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
-    # read upward short-wave radiation, hourly means
-    rsu <- readRDS(rsufile)
-    rsu <- period.apply(rsu, endpoints(rsu, on="hours"), mean)
-    # select common time window
-    est.dat <- merge(rsd, rsu, join="inner")
-    names(est.dat) <- c("rsd", "rsu")
+    # collect estimation data
+    est.dat <- GenerateEstDat(c("rsd", "rsu"))
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
-    # and to times where gr & rsu != 0
+    # and to times when gr & rsu != 0
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rsd != 0 & est.dat$rsu != 0
@@ -127,15 +125,10 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else if (length(grep("radex", parname)) != 0) {
   # radex parameters
+  # requires: rsd, rx
 
-    # read extraterrestrial radiation
-    rx <- read.delim(rxfile, sep="\t")
-    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
-    # read global radiation input
-    rsd <- read.delim(rsdfile, sep="\t")
-    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
-    # make inner join of time series
-    est.dat <- merge(rx, rsd, join="inner")
+    # collect estimation data
+    est.dat <- GenerateEstDat(c("rx", "rsd"))
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
     # and to times when rx != 0 and where rsd > 50 W.m-2
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
@@ -194,44 +187,30 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else if (length(grep("fcorr", parname)) != 0) {
   # fcorr parameters
+  # requires: hr, rld, rlu, rsd, rx, ta, radex_a, radex_b
+
+    # collect estimation data
+    est.dat <- GenerateEstDat(c("ta", "hr", "rld", "rlu", "rsd", "rx"))
 
     # calculate net emissivity between ground and atmosphere
-    ta <- read.delim(tafile, sep="\t")  # mean air temperature, in degC
-    ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
     if (emismeth == "Idso") {
-      emis <- EmisIdso(ta)
+      est.dat$emis <- EmisIdso(est.dat$ta)
     } else if (emismeth == "Brunt") {
-      hr <- read.delim(hrfile, sep="\t")
-      hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
-      vap <- VapMagnus(ta, hr)
+      est.dat$vap <- VapMagnus(est.dat$ta, est.dat$hr)
       # vap in kPa!
-      emis <- EmisBrunt(0.34, -0.14, vap / 10)
+      est.dat$emis <- EmisBrunt(0.34, -0.14, est.dat$vap / 10)
     } else if (emismeth == "both") {
     # both methods for comparison
-      hr <- read.delim(hrfile, sep="\t")
-      hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
-      vap <- VapMagnus(ta, hr)
-      emis.idso <- EmisIdso(ta)
+      est.dat$vap <- VapMagnus(est.dat$ta, est.dat$hr)
+      est.dat$emis.idso <- EmisIdso(est.dat$ta)
       # vap in kPa!
-      emis.brunt <- EmisBrunt(0.34, -0.14, vap / 10)
+      est.dat$emis.brunt <- EmisBrunt(0.34, -0.14, est.dat$vap / 10)
     } else {
       stop("Unknown emismeth! Choose either 'Idso' or 'Brunt' or 'both'.")
     }
 
     # calculate fcorr (adapted Stefan-Boltzmann law)
-    rld <- readRDS(rldfile)  # downward lw radiation
-    rld <- period.apply(rld, endpoints(rld, on="hours"), mean)
-    rlu <- readRDS(rlufile)  # upward lw radiation
-    rlu <- period.apply(rlu, endpoint(rlu, on="hours"), mean)
     sig <- 5.670367E-8  # Stefan constant
-    # make inner join of time series
-    if (emismeth == "both") {
-      est.dat <- merge(rld, rlu, emis.brunt, emis.idso, ta, all=FALSE)
-      names(est.dat)[3:4] <- c("emis.brunt", "emis.idso")
-    } else {
-      est.dat <- merge(rld, rlu, emis, ta, all=FALSE)
-      names(est.dat)[3] <- "emis"
-    }
     if (plots) {
       with(est.dat, plot(as.numeric(ta), as.numeric(rld - rlu),
            main="", xlab=expression("Mean air temperature"~({}^o~C)),
@@ -258,38 +237,28 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       }
     }
     if (emismeth == "both") {
-      fcorr.brunt <- with(est.dat,
-                          -(rld - rlu) / (emis.brunt * sig * (ta + 273.15) ^ 4))
-      fcorr.idso <- with(est.dat,
-                         -(rld - rlu) / (emis.idso * sig * (ta + 273.15) ^ 4))
+      est.dat$f.brunt <- with(est.dat,
+                              -(rld - rlu) /
+                                (emis.brunt * sig * (ta + 273.15) ^ 4))
+      est.dat$f.idso <- with(est.dat,
+                             -(rld - rlu) /
+                               (emis.idso * sig * (ta + 273.15) ^ 4))
     } else {
-      fcorr <- with(est.dat,
-                    -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
+      est.dat$f <- with(est.dat, -(rld - rlu) / (emis * sig * (ta + 273.15) ^ 4))
     }
 
     # estimate fcorr_a, fcorr_b from fcorr, rsd, rx
-    rsd <- read.delim(rsdfile, sep="\t")
-    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
-    rx <- read.delim(rxfile, sep="\t")
-    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
-    if (emismeth == "both") {
-      est.dat <- merge(fcorr.brunt, fcorr.idso, rsd, rx, all=FALSE)
-      names(est.dat)[1:2] <- c("fcorr.brunt", "fcorr.idso")
-    } else {
-      est.dat <- merge(fcorr, rsd, rx, all=FALSE)
-      names(est.dat)[1] <- "fcorr"
-    }
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rx != 0
     est.dat$rsdmax <- (radex_a + radex_b) * est.dat$rx
     if (emismeth == "both") {
-      lm.brunt <- with(est.dat[ix],
-                       lm(as.numeric(fcorr.brunt) ~ as.numeric(rsd / rsdmax)))
-      lm.idso <- with(est.dat[ix],
-                      lm(as.numeric(fcorr.idso) ~ as.numeric(rsd / rsdmax)))
-      isct.brunt <- coef(lm.brunt)[1]
-      isct.idso <- coef(lm.idso)[1]
+      lmod.brunt <- with(est.dat[ix],
+                         lm(as.numeric(f.brunt) ~ as.numeric(rsd / rsdmax)))
+      lmod.idso <- with(est.dat[ix],
+                        lm(as.numeric(f.idso) ~ as.numeric(rsd / rsdmax)))
+      isct.brunt <- coef(lmod.brunt)[1]
+      isct.idso <- coef(lmod.idso)[1]
       # Force models to explain (x, y) == (1, 1)
       # because fcorr_a + fcorr_b must = 1.
       # Intersect of model taken from original linear regression.
@@ -297,7 +266,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       mod.idso <- lm(c(isct.idso, 1) ~ c(0, 1))
     } else {
       lmod <- with(est.dat[ix], 
-                   lm(as.numeric(fcorr) ~ as.numeric(rsd / rsdmax)))
+                   lm(as.numeric(f) ~ as.numeric(rsd / rsdmax)))
       # See previous comment.
       mod <- lm(c(coef(lmod)[1], 1) ~ c(0, 1))
     }
@@ -310,7 +279,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         par(mfrow=c(2, 1), mar=c(3, 4, 1, 1))
         # plot data with Brunt model
         with(est.dat[ix],
-             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.brunt),
+             plot(as.numeric(rsd / rsdmax), as.numeric(f.brunt),
                   xaxt="n", main="", xlab="", ylab="fcorr"))
         axis(1, at=seq(0, 1, 0.2), labels=seq(0, 1, 0.2))
         abline(mod.brunt, col=4)
@@ -320,7 +289,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         text(0.5, 1.2, "emis: Brunt (1932)")
         par(mar=c(4, 4, 0, 1))
         with(est.dat[ix],
-             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr.idso),
+             plot(as.numeric(rsd / rsdmax), as.numeric(f.idso),
                   main="", xlab=expression(R[inS]/R[inS*","*cs]),
                   ylab="fcorr"))
         abline(mod.idso, col=4)
@@ -331,7 +300,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         dev.off()
       } else {
         with(est.dat[ix],
-             plot(as.numeric(rsd / rsdmax), as.numeric(fcorr),
+             plot(as.numeric(rsd / rsdmax), as.numeric(f),
                   main=emismeth, xlab=expression(R[inS]/R[inS,cs]),
                   ylab="fcorr"))
         abline(mod, col=4)
@@ -355,30 +324,19 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
   } else if (length(grep("emis", parname)) != 0) {
   # emis parameters
-  # requires: rsdfile, rxfile, rldfile, rlufile, tafile, hrfile, radex_a, radex_b
+  # requires: hr, rsd, rld, rlu, rx, ta, radex_a, radex_b
 
-    # read files
-    rsd <- read.delim(rsdfile, sep="\t")
-    rsd <- xts(rsd[, 2], order.by=as.POSIXct(rsd[, 1], tz="UTC"))
-    rx <- read.delim(rxfile, sep="\t")
-    rx <- xts(rx[, 2], order.by=as.POSIXct(rx[, 1], tz="UTC"))
-    rsdmax <- (radex_a + radex_b) * rx
-#    rld <- apply.period() readRDS(rldfile)
-    rlu <- readRDS(rlufile)
-    ta <- read.delim(tafile, sep="\t")
-    ta <- xts(ta[, 2], order.by=as.POSIXct(ta[, 1], tz="UTC"))
-    hr <- read.delim(hrfile, sep="\t")
-    hr <- xts(hr[, 2], order.by=as.POSIXct(hr[, 1], tz="UTC"))
+    # collect estimation data
+    est.dat <- GenerateEstDat(c("rsd", "rx", "rld", "rlu", "ta", "hr"))
+    est.dat$rsdmax <- (radex_a + radex_b) * est.dat$rx
 
     # calculate vapor pressure, Magnus equation
-    vap <- VapMagnus(ta, hr)    
-    est.dat <- merge(rsd, rsdmax, rx, rld, rlu, ta, vap, all=FALSE)
-    names(est.dat)[c(2, 7)] <- c("rsdmax", "vap")
+    est.dat$vap <- VapMagnus(est.dat$ta, est.dat$hr)
     sig <- 5.670367E-8  # Stefan constant
 
     # compare "observed" emissivity with models of Brunt and Idso-Jackson:
     # (1) select times when global radiation is approximately "clear-sky"
-    ix <- with(est.dat, rsd / rsdmax > .99 & rsd / rsdmax <= 1)
+    ix <- with(est.dat, rsd / rsdmax > .9 & rsd / rsdmax <= 1)
     # (2) calculate net emissivity with Stefan-Boltzmann (f assumed to be 1)
     # TODO(2017-05-12): check lw balance: emis is very low, maybe select from rl?
     # ...
@@ -408,51 +366,48 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     # load RAtmosphere library for calculating sunrise/sunset hours
     library(RAtmosphere)
-    # read net radiation (internally calculated)
-    rad_net <- read.delim(rnetfile, sep="\t")
-    rad_net.xts <- xts(rad_net[, 2],
-                       order.by=as.POSIXct(rad_net[, 1], tz="UTC"))
-    # read soil heat flux (record)
-    soilheat <- read.delim(sheatfile, sep="\t")
-    soilheat.xts <- xts(soilheat[, 2],
-                        order.by=as.POSIXct(soilheat[, 1], tz="UTC"))
-    # select common time window
-    tstart <- max(index(rad_net.xts)[1], index(soilheat.xts)[1])
-    tend <- min(tail(index(rad_net.xts), 1), tail(index(soilheat.xts), 1))
-    rnet <- rad_net.xts[paste0(tstart, "/", tend)]
-    sheat <- soilheat.xts[paste0(tstart, "/" ,tend)]
+
+    # collect estimation data
+    est.dat <- GenerateEstDat(c("rnet", "sheat"))
+
     # divide into daytime and nighttime
-    sun <- suncalc(as.numeric(format(index(rnet), "%j")), lat, lon)
-    rnet.day <- rnet[as.numeric(format(index(rnet), "%H")) > sun$sunrise
-                     & as.numeric(format(index(rnet), "%H")) < sun$sunset]
-    rnet.night <- rnet[as.numeric(format(index(rnet), "%H")) < sun$sunrise
-                       | as.numeric(format(index(rnet), "%H")) > sun$sunset]
-    sheat.day <- sheat[as.numeric(format(index(sheat), "%H")) > sun$sunrise
-                       & as.numeric(format(index(sheat), "%H")) < sun$sunset]
-    sheat.night <- sheat[as.numeric(format(index(sheat), "%H")) < sun$sunrise
-                         | as.numeric(format(index(sheat), "%H")) > sun$sunset]
+    sun <- suncalc(as.numeric(format(index(est.dat$rnet), "%j")), lat, lon)
+    ix.day <- as.numeric(format(index(est.dat$rnet), "%H")) > sun$sunrise &
+              as.numeric(format(index(est.dat$rnet), "%H")) < sun$sunset
+    ix.night <- as.numeric(format(index(est.dat$rnet), "%H")) < sun$sunrise |
+                as.numeric(format(index(est.dat$rnet), "%H")) > sun$sunset
+    est.dat$rnet.day <- est.dat$rnet[ix.day]
+    est.dat$rnet.night <- est.dat$rnet[ix.night]
+    est.dat$sheat.day <- est.dat$sheat[ix.day]
+    est.dat$sheat.night <- est.dat$sheat[ix.night]
+
     # diagnostic plots
     if (plots) {
       # time window
       t.win <- "2014-05-01/2014-05-20"
       # heat ratio
-      heat.ratio.day <- abs(sheat.day[t.win]) / abs(rnet.day[t.win])
-      heat.ratio.night <- abs(sheat.night[t.win]) / abs(rnet.night[t.win])
+      heat.ratio.day <- with(est.dat[t.win],
+                             abs(sheat.day) / abs(rnet.day))
+      heat.ratio.night <- with(est.dat[t.win],
+                               abs(sheat.night) / abs(rnet.night))
       # daytime plots
-      plot(sheat.day[t.win], ylim=c(-22, 750),
+      plot(est.dat$sheat.day[t.win], ylim=c(-22, 750),
            ylab="black: sheat.day, red: rnet.day", main="")
-      lines(rnet.day, col=2)
+      lines(est.dat$rnet.day, col=2)
       plot(heat.ratio.day, ylab="soil heat/net radiation", main="day")
       # nighttime plots
-      plot(sheat.night[t.win], ylim=c(-50, 100),
+      plot(est.dat$sheat.night[t.win], ylim=c(-50, 100),
            ylab="black: sheat.night, red: rnet.night", main="")
-      lines(rnet.night, col=2)
+      lines(est.dat$rnet.night, col=2)
       plot(heat.ratio.night, ylab="soil heat/net radiation", main="night")
     }
 
     # return parameters
-    return(c(mean(c(abs(sheat.day) / abs(rnet.day)), na.rm=T),  # f_day
-             mean(c(abs(sheat.night) / c(rnet.night)), na.rm=T)))  # f_night
+    return(with(est.dat,
+                c(# f_day
+                  mean(c(abs(sheat.day) / abs(rnet.day)), na.rm=T),
+                  # f_night
+                  mean(c(abs(sheat.night) / abs(rnet.night)), na.rm=T))))
 
   } else {
     

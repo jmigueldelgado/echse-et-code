@@ -1,9 +1,12 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-15
+# Last Edit: 2017-05-18
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
+# TODO(2017-05-18): radex estimation,
+#                   Error in error(x, ...) : 
+#                   improper length of one or more arguments to merge.xts
 ################################################################################
 
 rm(list=ls())
@@ -497,7 +500,7 @@ if (output != "rad_net") {
   f_night <- f.out[2]
 }
 
-debugonce(echseParEst)
+#debugonce(echseParEst)
 
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
@@ -505,18 +508,18 @@ if (output != "radex") {
   radex.out <- echseParEst("radex",
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          field.station, "/test1.txt"),
-                           rsdfile=paste0(path.meteo, "glorad_data.dat"),
+                           rsdfile="data/portugal/Kdown",
                            r.quantile=0.05, plots=TRUE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }
 
-debugonce(echseParEst)
+#debugonce(echseParEst)
 
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, functions returns suggested values from Maidment (1993)
 emis.out <- echseParEst("emis",
-                        rsdfile=paste0(path.meteo, "glorad_data.dat"),
+                        rsdfile="data/portugal/Kdown",
                         rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                       field.station, "/test1.txt"),
                         rldfile="data/portugal/Ldown",
@@ -533,7 +536,7 @@ emismeth <- "both"
 fcorr.out <- echseParEst("fcorr",
                          rldfile="data/portugal/Ldown",
                          rlufile="data/portugal/Lup",
-                         rsdfile=paste0(path.meteo, "glorad_data.dat"),
+                         rsdfile="data/portugal/Kdown",
                          hrfile=paste0(path.meteo, "rhum_data.dat"),
                          rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                        field.station, "/test1.txt"),
