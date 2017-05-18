@@ -6,8 +6,6 @@
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
 # TODO(2017-05-12): L344 (emis estimation)
-# TODO(2017-05-18): radex: Error in error(x, ...) : 
-#                   improper length of one or more arguments to merge.xts
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -76,7 +74,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     f <- readRDS(file)
     ep <- endpoints(f, on="hours") + 1
-    return(period.apply(f, ep[-length(ep)], mean))
+    return(xts(period.apply(f, ep[-length(ep)], mean),
+               order.by=index(f)[ep[-c(1, length(ep))]]))
   }
 
   GenerateEstDat <- function(vars  # vector of variable names
@@ -164,8 +163,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       # plot rad.ratio over hours of day to detect subdaily trends
       S <- FALSE
       repeat {
-        plot(as.numeric(format(index(rx[ix]), "%H")), rad.ratio, ylim=c(0, 1),
-             xlab="hour of day", ylab="glorad/radex")
+        plot(as.numeric(format(index(est.dat$rx[ix]), "%H")), rad.ratio,
+             ylim=c(0, 1), xlab="hour of day", ylab="glorad/radex")
         abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
         if (S)
           break
@@ -174,9 +173,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       }
       dev.off()
       # plot extraterr. and global radiation to detect time shifts
-      plot(rx, type="l", ylim=c(0, max(as.numeric(rx))),
+      plot(est.dat$rx, type="l", ylim=c(0, max(as.numeric(est.dat$rx))),
            xlab="date", ylab="rad (black: rx, red: gr)", main="")
-      lines(rsd, col=2)
+      lines(est.dat$rsd, col=2)
     }
     # return parameters
     out <- c(# radex_a

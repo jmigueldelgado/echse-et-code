@@ -4,9 +4,6 @@
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
-# TODO(2017-05-18): radex estimation,
-#                   Error in error(x, ...) : 
-#                   improper length of one or more arguments to merge.xts
 ################################################################################
 
 rm(list=ls())
@@ -602,8 +599,8 @@ print.xtable(sharedParamNum.tex,
 
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai)
 
-alb <- echseParEst("alb", grfile=paste0(path.meteo, "glorad_data.dat"),
-                   rsufile=paste0("data/portugal/Kup"), plots=TRUE)
+alb <- echseParEst("alb", rsdfile="data/portugal/Kdown",
+                   rsufile="data/portugal/Kup", plots=TRUE)
 cano_height <- ifelse(field.station=="NSA", 7.98, 0.20)
 lai <- ifelse(field.station == "NSA", 1.397, 0.778)
 
