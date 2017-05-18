@@ -82,7 +82,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # generates common xts object of data required for parameter estimation
 
     vars.ls <- list()
-    for i in 1:length(vars) {
+    for (i in 1:length(vars)) {
       if (vars[i] %in% c("rsd", "rsu", "rld", "rlu")) {
         vars.ls[[i]] <- ReadToHlyMean(paste0(vars[i], "file"))
       } else {
@@ -92,8 +92,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # ...
     # resume here
     # ...
-    est.dat <- merge(...)
+    est.dat <- merge(vars.ls, all=FALSE)
     names(est.dat) <- vars
+    return(est.dat)
   }
 
   if (length(grep("alb", parname)) != 0) {

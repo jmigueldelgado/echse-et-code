@@ -505,7 +505,7 @@ if (output != "radex") {
   radex.out <- echseParEst("radex",
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          field.station, "/test1.txt"),
-                           grfile=paste0(path.meteo, "glorad_data.dat"),
+                           rsdfile=paste0(path.meteo, "glorad_data.dat"),
                            r.quantile=0.05, plots=TRUE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
@@ -516,7 +516,7 @@ debugonce(echseParEst)
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, functions returns suggested values from Maidment (1993)
 emis.out <- echseParEst("emis",
-                        grfile=paste0(path.meteo, "glorad_data.dat"),
+                        rsdfile=paste0(path.meteo, "glorad_data.dat"),
                         rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                       field.station, "/test1.txt"),
                         rldfile="data/portugal/Ldown",
@@ -533,7 +533,7 @@ emismeth <- "both"
 fcorr.out <- echseParEst("fcorr",
                          rldfile="data/portugal/Ldown",
                          rlufile="data/portugal/Lup",
-                         grfile=paste0(path.meteo, "glorad_data.dat"),
+                         rsdfile=paste0(path.meteo, "glorad_data.dat"),
                          hrfile=paste0(path.meteo, "rhum_data.dat"),
                          rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                        field.station, "/test1.txt"),
