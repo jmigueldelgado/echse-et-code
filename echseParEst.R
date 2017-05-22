@@ -1,11 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-18
+# Last Edit: 2017-05-19
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
 #      Works for alb, emis_*, f_*, fcorr_*, radex_*
-# TODO(2017-05-12): L344 (emis estimation)
 ################################################################################
 
 echseParEst <- function(parname,  # name of parameter group to estimate
@@ -335,25 +334,36 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     # compare "observed" emissivity with models of Brunt and Idso-Jackson:
     # (1) select times when global radiation is approximately "clear-sky"
-    ix <- with(est.dat, rsd / rsdmax > .9 & rsd / rsdmax <= 1)
-    # (2) calculate net emissivity with Stefan-Boltzmann (f assumed to be 1)
-    # TODO(2017-05-12): check lw balance: emis is very low, maybe select from rl?
-    # ...
-    # resume here
-    # ...
-    est.dat$emis <- with(est.dat[ix],
+    ix.rsdmax <- with(est.dat, rsd / rsdmax > .9 & rsd / rsdmax <= 1)
+    # (2) select noon hours (10 am to 2 pm); just out of interest
+    ix.noon <- as.numeric(format(index(est.dat), "%H")) > 9 &
+               as.numeric(format(index(est.dat), "%H")) < 15 &
+               ix.rsdmax  # take only noon hours from pre-selected data
+    # (3) calculate net emissivity with Stefan-Boltzmann (f assumed to be 1)
+    est.dat$emis <- with(est.dat[ix.rsdmax],
                          - (rld - rlu) / (sig * (ta + 273.15) ^ 4))
-    # (3) plot observation-based emissivity against models
+    # (4) plot observation-based emissivity against models
     pdf("doku/plot_emis_both.pdf", height=5, width=9)
     par(mfrow=c(1, 2))
-    with(est.dat[ix],
-         plot(as.numeric(EmisBrunt(0.34, -0.14, est.dat[ix]$vap / 10)), emis,
+    with(est.dat[ix.rsdmax & !ix.noon],
+         plot(as.numeric(EmisBrunt(0.34, -0.14,
+                                   est.dat[ix.rsdmax & !ix.noon]$vap / 10)),
+              emis, xlim=c(0, 0.25), ylim=c(0, 0.25),
               xlab=expression(epsilon*", predicted by Brunt model"),
               ylab=expression(epsilon*", derived from observations")))
+    with(est.dat[ix.noon],
+         points(as.numeric(EmisBrunt(0.34, -0.14,
+                                     est.dat[ix.noon]$vap / 10)),
+                emis, pch=20))
     lines(0:1, 0:1)
-    with(est.dat[ix],
-         plot(as.numeric(EmisIdso(est.dat[ix]$ta)), emis, ylab="",
+    legend("topleft", c("noon", "rest of day"), pch=c(20, 1), bty="n")
+    with(est.dat[ix.rsdmax & !ix.noon],
+         plot(as.numeric(EmisIdso(est.dat[ix.rsdmax & !ix.noon]$ta)),
+              emis, xlim=c(0, 0.25), ylim=c(0, 0.25), ylab="",
               xlab=expression(epsilon*", predicted by Idso-Jackson model")))
+    with(est.dat[ix.noon],
+         points(as.numeric(EmisIdso(est.dat[ix.noon]$ta)),
+                emis, pch=20))
     lines(0:1, 0:1)
     dev.off()
 
