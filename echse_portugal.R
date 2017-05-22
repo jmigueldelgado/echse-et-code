@@ -1,9 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-18
+# Last Edit: 2017-05-19
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
+# TODO(2017-05-19): check if engines are running
 ################################################################################
 
 rm(list=ls())
