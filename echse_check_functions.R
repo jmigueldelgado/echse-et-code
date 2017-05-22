@@ -1,0 +1,103 @@
+# functions, taken from ECHSE code
+
+res_stom_leaf <- function(res_min,
+                          cond_vap,
+                          cond_water
+                          ) {
+
+  cond_vap * cond_water * 1 / res_min
+
+}
+
+stress_soilwater <- function(wc,
+                             wc_sat,
+                             wc_res,
+                             bubble,
+                             pores_ind,
+                             wstressmin,
+                             wstressmax
+                             ) {
+
+  # problems with this function; see original code (resistances.h)
+
+  sat_rel <- (wc - wc_res) / (wc_sat - wc_res)
+  m <- pores_ind / (pores_ind + 1)
+
+  if (sat_rel >= 0.999) {
+    suction <- 0
+  } else {
+    suction <- (1 / (sat_rel^(1 / m)) - 1)^(1 / (pores_ind + 1)) * bubble
+  }
+
+  if (suction < wstressmin) {
+    return(1)
+  } else if (suction >= wstressmax) {
+    return(0)
+  } else {
+    return(1 - (suction - wstressmin) / (wstressmax - wstressmin))  # Guentner 2002
+  }
+}
+
+stress_humidity <- function(vap_deficit,
+                            par
+                            ) {
+
+  # problems with this function; see original code (resistances.h)
+
+  return(1 / (1 + par * vap_deficit))
+}
+
+satVapPress_overWater <- function(temp
+                                  ) {
+ return(6.11 * 10^(7.5 * temp / (237.3 + temp)))
+}
+
+vapPress_overWater <- function(temp,
+                               relhum
+                               ) {
+  return(satVapPress_overWater(temp) * relhum / 100)
+}
+
+
+# my parameters
+
+bubble <- 8.08
+par_stressHum <- 0.03  # Guentner, WASA code
+pores_ind <- 0.45
+res_leaf_min <- 50  # s.m-1
+wc_res <- 0.049
+wc_sat <- 0.387
+wstressmax <- 10000
+wstressmin <- 100
+
+# read data
+
+library(xts)
+
+rhum <- read.delim("~/uni/projects/evap_portugal/data/forcing/meteo/05_meteofill/out/HS/rhum_data.dat")
+rhum <- xts(rhum[, 2], order.by=as.POSIXct(rhum[, 1]))
+temper <- read.delim("~/uni/projects/evap_portugal/data/forcing/meteo/05_meteofill/out/HS/temper_data.dat")
+temper <- xts(temper[, 2], order.by=as.POSIXct(temper[, 1]))
+wc_vol_root <- read.delim("~/uni/projects/evap_portugal/data/forcing/meteo/05_meteofill/out/HS/wc_vol_root_data.dat")
+wc_vol_root <- xts(wc_vol_root[, 2], order.by=as.POSIXct(wc_vol_root[, 1]))
+mdata <- merge(rhum, temper, wc_vol_root, all=FALSE)
+
+# calculate internal (and possibly erroneous) results
+
+ez0 <- c()
+ez <- c()
+cond_vap <- c()
+cond_water <- c()
+res_leaf <- c()
+
+for (ix in 1:100) { #seq(index(mdata)[1], tail(index(mdata))[1], by="hours")) {
+
+  ez0[ix] <- with(mdata[ix], satVapPress_overWater(temper))
+  ez[ix] <- with(mdata[ix], vapPress_overWater(temper, rhum))
+
+  cond_vap[ix] <- with(mdata[ix], stress_humidity(ez0[ix] - ez[ix], par_stressHum))
+  cond_water[ix] <- with(mdata[ix], stress_soilwater(wc_vol_root, wc_sat, wc_res, bubble, pores_ind, wstressmin, wstressmax))
+
+  res_leaf[ix] <- res_stom_leaf(res_leaf_min, cond_vap[ix], cond_water[ix])
+
+}
