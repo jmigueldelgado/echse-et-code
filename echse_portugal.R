@@ -1,10 +1,9 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-19
+# Last Edit: 2017-05-26
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
-# TODO(2017-05-19): check if engines are running
 ################################################################################
 
 rm(list=ls())
@@ -17,7 +16,7 @@ Sys.setenv(TZ="UTC")
 
 output <- "evap"  # [evap, glorad, gloradmax, rad_net, radex, soilheat]
 field.station <- "HS"  # [HS, NSA]
-et.choice <- "eta"  # potential or actual evapotranspiration [etp, eta]
+et.choice <- "etp"  # potential or actual evapotranspiration [etp, eta]
 et.choice[2] <- 13  # model [1=Makk, 11=PM, 12=FAO, 13=SW]
 wc.new <- T  # logical: Shall the newly calculated soil moisture data be used?
 
@@ -27,25 +26,26 @@ if (output %in% c("gloradmax", "rad_net", "radex")) {
   tend <- "2014-07-01 05:00:00"
 } else if (field.station == "HS") {
 # HS
-  #tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
-  #####tstart <- "2014-05-08 23:00:00"; tend <- "2014-05-10 01:00:00"
-  #tstart <- "2014-05-13 23:00:00"; tend <- "2014-05-20 19:00:00"
-  #tstart <- "2014-05-22 13:00:00"; tend <- "2014-05-25 21:00:00"
-  #tstart <- "2014-06-16 23:00:00"; tend <- "2014-06-21 17:00:00"
-  tstart <- "2014-06-26 18:00:00"; tend <- "2014-07-01 05:00:00"
+  tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
+  #tstart <- "2014-05-09 01:00:00"; tend <- "2014-05-10 01:00:00"
+  #tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
+  #tstart <- "2014-05-22 15:00:00"; tend <- "2014-05-25 21:00:00"
+  #tstart <- "2014-06-17 12:00:00"; tend <- "2014-06-21 17:00:00"
+  #tstart <- "2014-06-26 01:00:00"; tend <- "2014-07-01 07:00:00"
 } else {
 # NSA
-  #tstart <- "2014-04-29 22:00:00"; tend <- "2014-05-04 13:00:00"
-  tstart <- "2014-05-13 23:00:00"; tend <- "2014-05-20 19:00:00"
-  #tstart <- "2014-05-22 13:00:00"; tend <- "2014-05-25 21:00:00"
-  #tstart <- "2014-06-11 23:00:00"; tend <- "2014-06-14 03:00:00"
-  #tstart <- "2014-06-16 23:00:00"; tend <- "2014-06-21 17:00:00"
-  #tstart <- "2014-06-25 23:00:00"; tend <- "2014-07-01 07:00:00"
-  #tstart <- "2014-07-14 23:00:00"; tend <- "2014-07-21 07:00:00"
+  tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
+  #tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
+  #tstart <- "2014-05-22 15:00:00"; tend <- "2014-05-25 21:00:00"
+  #tstart <- "2014-06-12 12:00:00"; tend <- "2014-06-14 03:00:00"
+  #tstart <- "2014-06-17 12:00:00"; tend <- "2014-06-21 17:00:00"
+  #tstart <- "2014-06-26 01:00:00"; tend <- "2014-07-01 07:00:00"
+  #tstart <- "2014-07-15 12:00:00"; tend <- "2014-07-21 07:00:00"
   #tstart <- "2014-07-23 23:00:00"; tend <- "2014-08-04 18:00:00"
 }
 
 # Shall the model period strictly exclude times with missing data?
+
 no.na <- T
 
 # For rad_net & radex, we need a maximum of the data, so no.na is unchecked.
@@ -88,7 +88,7 @@ locs <- list(field.station,  # alb
              "any",  # glorad_max
              "any",  # hour
              field.station,  # lai
-             "any",  # rad_long
+             field.station,  # rad_long
              field.station,  # rad_net
              "any",  # rad_net_soil
              "any",  # radex
@@ -276,18 +276,31 @@ if (no.na && na.present)
 
 # split data into list elements for further processing
 for (i in 1:length(HS.names)) {
-  HS.list <- c(HS.list, 
+  HS.list <- c(HS.list,
                list(xts(order.by=index(HS.full[format(as.Date(tend), "%Y"), ]),
                         HS.full[format(as.Date(tend), "%Y"), i])))
-  NSA.list <- c(NSA.list, 
+  NSA.list <- c(NSA.list,
                 list(xts(order.by=index(NSA.full[format(as.Date(tend),
                                                         "%Y"), ]),
                          NSA.full[format(as.Date(tend), "%Y"), i])))
 }
 
 # soil moisture data
-wc.HS.xts <- xts(wc.HS$sm, order.by=as.POSIXct(wc.HS$date))
-wc.NSA.xts <- xts(wc.NSA$sm, order.by=as.POSIXct(wc.NSA$date))
+wc.HS.xts <- merge(xts(wc.HS$sm, order.by=as.POSIXct(wc.HS$date)),
+                   xts(order.by=seq(as.POSIXct(wc.HS$date[1]),
+                                    as.POSIXct(tail(wc.HS$date, 1)),
+                                    by="15 min")))
+wc.NSA.xts <- merge(xts(wc.NSA$sm, order.by=as.POSIXct(wc.NSA$date)),
+                    xts(order.by=seq(as.POSIXct(wc.NSA$date[1]),
+                                     as.POSIXct(tail(wc.NSA$date, 1)),
+                                     by="15 min")))
+# take hourly data
+ep.HS <- endpoints(wc.HS.xts, on="hours") + 1
+wc.HS.xts <- xts(period.apply(wc.HS.xts, ep.HS[-length(ep.HS)], mean),
+                 order.by=index(wc.HS.xts)[ep.HS[-c(1, length(ep.HS))]])
+ep.NSA <- endpoints(wc.NSA.xts, on="hours") + 1
+wc.NSA.xts <- xts(period.apply(wc.NSA.xts, ep.NSA[-length(ep.NSA)], mean),
+                  order.by=index(wc.NSA.xts)[ep.NSA[-c(1, length(ep.NSA))]])
 if (!wc.new) {
   # Set soil moisture to zero where negative ...
   HS.list[[4]][HS.list[[4]] < 0] <- 0
@@ -401,12 +414,12 @@ wc_res <- pft.rawls(soilprop, parameters="theta_r", h=0)[, "theta_r"]
 # field capacity for estimation of wc_etmax
 wc_fc <- pft.rawls(soilprop, parameters="theta", h=316)[, "theta"]
 # wc_etmax is a calibration parameter! This is only a rough estimation:
-wc_etmax <- .8 * wc_fc
+wc_etmax <- 0.8 * wc_fc  # used only for Makkink, FAO
 bubble <- pft.rawls(soilprop, parameters="h_b", h=0)[, "h_b"]
 pores_ind <- pft.rawls(soilprop, parameters="lambda", h=0)[, "lambda"]
 
 # check if measured water content undercuts parameter value
-if (any(HS.list[[4]] < wc_res))
+if (any(HS.list[[4]] < wc_res, na.rm=TRUE))
   wc_res <- min(na.omit(HS.list[[4]]))
 
 # plant parameters
@@ -415,7 +428,7 @@ crop_makk <- .8
 glo_half <- 200
 par_stressHum <- .03
 res_leaf_min <- 50
-wstressmax <- 10000
+wstressmax <- 15849
 wstressmin <- 100
 
 # collect individual parameters
@@ -471,9 +484,9 @@ f_day <- .1
 f_night <- .7
 fcorr_a <- 1.35
 fcorr_b <- -.35
-h_humMeas <- ifelse(field.station=="NSA", 4.84, 2)
-h_tempMeas <- ifelse(field.station=="NSA", 4.84, 2)
-h_windMeas <- ifelse(field.station=="NSA", 4.84, 2)
+h_humMeas <- ifelse(field.station=="NSA", 7.98, 2)
+h_tempMeas <- ifelse(field.station=="NSA", 7.98, 2)
+h_windMeas <- ifelse(field.station=="NSA", 7.98, 2)
 na_val <- "-9999."
 radex_a <- .25
 radex_b <- .5
@@ -550,7 +563,7 @@ if (emismeth == "both") {
   fcorr_b <- fcorr_b[1]
 }
 
-if (fcorr_a + fcorr_b != 1)
+if (round(fcorr_a + fcorr_b, 3) != 1)
   stop("The sum of fcorr_a and fcorr_b must equal 1!")
 
 # collect shared parameters
@@ -802,6 +815,7 @@ echseCtrl_ini(engine, selection$STV, selection$I)
 
 # CALL MODEL RUN & POSTPROCESSING ----------------------------------------------
 
+#debugonce(echsePost)
 echsePost(engine, et.choice, ma.width=1, field.station=field.station, 
           comp=output, wc_etmax=wc_etmax)
 

@@ -1,9 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-11-28
-# Project: ECHSE evapotranspiration
+# Last Edit: 2017-05-26
+# Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
+# TODO(2017-05-26): x axis labels for comparison plots: don't want weekdays
 ################################################################################
 
 echsePost <- function(engine,  # name of ECHSE engine
@@ -19,8 +20,8 @@ echsePost <- function(engine,  # name of ECHSE engine
   # SET AND LOAD ---------------------------------------------------------------
 
   library(TTR)
-  results <- read.delim(paste0("~/uni/projects/", engine,
-                               "/run/out/test1.txt"), sep="\t")
+  results <- read.delim(paste0("~/uni/projects/", engine, "/run/out/test1.txt"),
+                        sep="\t")
 
   # POSTPROCESSING -------------------------------------------------------------
 
@@ -70,22 +71,34 @@ echsePost <- function(engine,  # name of ECHSE engine
         wind[is.na(wind)] <- 0
         wind.ma <- runMean(wind, n=ma.width)
 
+        AddAxis <- function(data
+                            ) {
+            pr <- pretty(range(data, na.rm=TRUE))
+            atlab <- c(pr[2], tail(pr, 2)[1])
+            axis(2, at=atlab, labels=atlab)
+        }
+        
         par(mar=c(0, 5, 5, 2))
-        plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})), xaxt="n",
+        plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
+             axes=FALSE,
              main=c(paste0("Engine: ", engine, ", ", field.station), et.choice))
-        #lines(period, radn.ma, xlim=xl, type="l", col=2)
-        #legend("topright", c("global rad.", "net rad."), lty=1, col=c(1, 2))
+        AddAxis(rad.ma)
         par(mar=c(0, 5, 0, 2))
-        plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)), xaxt="n")
-        plot(period, sohe.ma, xlim=xl, type="l",
-             ylab=(SHF~(W~m^{-2})), xaxt="n")
+        plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)),
+             axes=FALSE)
+        AddAxis(temp.ma)
+        plot(period, sohe.ma, xlim=xl, type="l", ylab=(SHF~(W~m^{-2})),
+             axes=FALSE)
+        AddAxis(sohe.ma)
         plot(period, somo.ma, xlim=xl, type="l",
-             ylab=expression(S.moist~({}-{})), xaxt="n")
-        abline(h=wc_etmax, col=8)
-        plot(period, hum.ma, xlim=xl, type="l",
-             ylab=(Rel.hum.~("%")), xaxt="n")
-        plot(period, wind.ma, xlim=xl, type="l",
-             ylab=(Wind~(m~s^{-1})), xaxt="n")
+             ylab=expression(S.moist~({}-{})), axes=F)
+        AddAxis(somo.ma)
+        plot(period, hum.ma, xlim=xl, type="l", ylab=(Rel.hum.~("%")),
+             axes=FALSE)
+        AddAxis(hum.ma)
+        plot(period, wind.ma, xlim=xl, type="l", ylab=(Wind~(m~s^{-1})),
+             axes=FALSE)
+        AddAxis(wind.ma)
         par(mar=c(4, 5, 0, 2))
         plot(period, as.numeric(HS.list[[8]][period]), xlim=xl,
              ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
@@ -118,7 +131,6 @@ echsePost <- function(engine,  # name of ECHSE engine
              ylab=(SHF~(W~m^{-2})), xaxt="n")
         plot(period, somo.ma, xlim=xl, type="l", 
              ylab=expression(S.moist~({}-{})), xaxt="n")
-        abline(h=wc_etmax, col=8)
         plot(period, hum.ma, xlim=xl, type="l",
              ylab=(Rel.hum.~("%")), xaxt="n")
         plot(period, wind.ma, xlim=xl, type="l",
@@ -128,7 +140,7 @@ echsePost <- function(engine,  # name of ECHSE engine
              ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
       }
       par(new=T)
-      plot(period, as.numeric(res.xts), xlim=xl, ylim=c(-.1, 2), col=2,
+      plot(period[-1], as.numeric(res.xts), xlim=xl, ylim=c(-.1, 2), col=2,
            xlab="Date", ylab="", type="l")
       legend("topright", c("simulation", "observation"), lty=1,
              col=c(2, "gray40"), bty="n")
