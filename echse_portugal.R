@@ -1,9 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-26
+# Last Edit: 2017-05-28
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
+# TODO(2017-05-28): check calculation of emis in case of no rhum data available
 ################################################################################
 
 rm(list=ls())
@@ -543,7 +544,7 @@ emis.out <- echseParEst("emis",
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
 # emismeth == "both" is used for direct comparison of emissivity methods.
-emismeth <- "both"
+emismeth <- "Idso"
 fcorr.out <- echseParEst("fcorr",
                          rldfile="data/portugal/Ldown",
                          rlufile="data/portugal/Lup",
