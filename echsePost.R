@@ -15,6 +15,15 @@ echsePost <- function(engine,  # name of ECHSE engine
                       wc_etmax  # min soil water content for max eta
                       ) {
 
+  AddAxis <- function(data
+                      ) {
+    pr <- pretty(range(data, na.rm=TRUE))
+    atlab <- c(pr[2], tail(pr, 2)[1])
+    axis(2, at=atlab, labels=atlab)
+  }
+
+  # RUN ECHSE ------------------------------------------------------------------
+
   system(paste0("cd ~/uni/projects/", engine, "/run; ./run cnf_default"))
 
   # SET AND LOAD ---------------------------------------------------------------
@@ -40,113 +49,77 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     if (engine == "evap_portugal") {
     # Portugal
-      pdf(paste0("plot_et_compare_portugal_", field.station, "_", dstart, "_",
-                 dend, ".pdf"))
+
+      fs.list <- get(paste0(field.station, ".list"))
       ma.width <- ma.width
       period <- seq(as.POSIXct(tstart), as.POSIXct(tend), by="1 hour")
       xl <- c(as.POSIXct(tstart), as.POSIXct(tend))
-      rad <- as.numeric(meteo.list[[3]][period])  # total incoming radiation
+      # total incoming radiation
+      rad <- as.numeric(meteo.list[[3]][period])
       rad[is.na(rad)] <- 0
       rad.ma <- runMean(rad, n=ma.width)
-      hum <- as.numeric(meteo.list[[6]][period])  # air humidity
+      # relative humidity
+      hum <- as.numeric(meteo.list[[6]][period])
       hum[is.na(hum)] <- 0
       hum.ma <- runMean(hum, n=ma.width)
+      # net radiation
+      radn <- as.numeric(fs.list[[1]][period])
+      radn[is.na(radn)] <- 0
+      radn.ma <- runMean(radn, n=ma.width)
+      # air temperature
+      temp <- as.numeric(fs.list[[2]][period])
+      temp[is.na(temp)] <- mean(as.numeric(HS.list[[2]]))
+      temp.ma <- runMean(temp, n=ma.width)
+      # soil heat flux
+      sohe <- as.numeric(fs.list[[3]][period])
+      sohe[is.na(sohe)] <- 0
+      sohe.ma <- runMean(sohe, n=ma.width)
+      # soil moisture
+      somo <- as.numeric(fs.list[[4]][period])
+      somo[is.na(somo)] <- wc_res
+      somo.ma <- runMean(somo, n=ma.width)
+      # wind
+      wind <- as.numeric(fs.list[[11]][period])
+      wind[is.na(wind)] <- 0
+      wind.ma <- runMean(wind, n=ma.width)
 
+      pdf(paste0("plot_et_compare_portugal_", field.station, "_", dstart, "_",
+                 dend, ".pdf"))
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
-      if (field.station == "HS") {
-      # Hauptstation
-        radn <- as.numeric(HS.list[[1]][period])  # net radiation
-        radn[is.na(radn)] <- 0
-        radn.ma <- runMean(radn, n=ma.width)
-        temp <- as.numeric(HS.list[[2]][period])  # air temperature
-        temp[is.na(temp)] <- mean(as.numeric(HS.list[[2]]))
-        temp.ma <- runMean(temp, n=ma.width)
-        sohe <- as.numeric(HS.list[[3]][period])  # soil heat flux
-        sohe[is.na(sohe)] <- 0
-        sohe.ma <- runMean(sohe, n=ma.width)
-        somo <- as.numeric(HS.list[[4]][period])  # soil moisture
-        somo[is.na(somo)] <- wc_res
-        somo.ma <- runMean(somo, n=ma.width)
-        wind <- as.numeric(HS.list[[11]][period])  # wind
-        wind[is.na(wind)] <- 0
-        wind.ma <- runMean(wind, n=ma.width)
-
-        AddAxis <- function(data
-                            ) {
-            pr <- pretty(range(data, na.rm=TRUE))
-            atlab <- c(pr[2], tail(pr, 2)[1])
-            axis(2, at=atlab, labels=atlab)
-        }
-        
-        par(mar=c(0, 5, 5, 2))
-        plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
-             axes=FALSE,
-             main=c(paste0("Engine: ", engine, ", ", field.station), et.choice))
-        AddAxis(rad.ma)
-        par(mar=c(0, 5, 0, 2))
-        plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)),
-             axes=FALSE)
-        AddAxis(temp.ma)
-        plot(period, sohe.ma, xlim=xl, type="l", ylab=(SHF~(W~m^{-2})),
-             axes=FALSE)
-        AddAxis(sohe.ma)
-        plot(period, somo.ma, xlim=xl, type="l",
-             ylab=expression(S.moist~({}-{})), axes=F)
-        AddAxis(somo.ma)
-        plot(period, hum.ma, xlim=xl, type="l", ylab=(Rel.hum.~("%")),
-             axes=FALSE)
-        AddAxis(hum.ma)
-        plot(period, wind.ma, xlim=xl, type="l", ylab=(Wind~(m~s^{-1})),
-             axes=FALSE)
-        AddAxis(wind.ma)
-        par(mar=c(4, 5, 0, 2))
-        plot(period, as.numeric(HS.list[[8]][period]), xlim=xl,
-             ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
-      } else {
-      # Nebenstation A
-        radn <- as.numeric(NSA.list[[1]][period])  # net radiation
-        radn[is.na(radn)] <- 0
-        radn.ma <- runMean(radn, n=ma.width)
-        temp <- as.numeric(NSA.list[[2]][period])  # air temperature
-        temp[is.na(temp)] <- mean(as.numeric(NSA.list[[2]]))
-        temp.ma <- runMean(temp, n=ma.width)
-        sohe <- as.numeric(NSA.list[[3]][period])  # soil heat flux
-        sohe[is.na(sohe)] <- 0
-        sohe.ma <- runMean(sohe, n=ma.width)
-        somo <- as.numeric(NSA.list[[4]][period])  # soil moisture
-        somo[is.na(somo)] <- wc_res
-        somo.ma <- runMean(somo, n=ma.width)
-        wind <- as.numeric(NSA.list[[11]][period])  # wind
-        wind[is.na(wind)] <- 0
-        wind.ma <- runMean(wind, n=ma.width)
-
-        par(mar=c(0, 5, 5, 2))
-        plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})), xaxt="n",
-             main=c(paste0("Engine: ", engine, ", ", field.station), et.choice))
-        #lines(index(NSA.list[[1]]), radn.ma, xlim=xl, type="l", col=2)
-        #legend("topright", c("global rad.", "net rad."), lty=1, col=c(1, 2))
-        par(mar=c(0, 5, 0, 2))
-        plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)), xaxt="n")
-        plot(period, sohe.ma, xlim=xl, type="l",
-             ylab=(SHF~(W~m^{-2})), xaxt="n")
-        plot(period, somo.ma, xlim=xl, type="l", 
-             ylab=expression(S.moist~({}-{})), xaxt="n")
-        plot(period, hum.ma, xlim=xl, type="l",
-             ylab=(Rel.hum.~("%")), xaxt="n")
-        plot(period, wind.ma, xlim=xl, type="l",
-             ylab=(Wind~(m~s^{-1})), xaxt="n")
-        par(mar=c(4, 5, 0, 2))
-        plot(period, as.numeric(NSA.list[[8]][period]), xlim=xl,
-             ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
-      }
+      par(mar=c(0, 5, 5, 2))
+      plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
+           axes=FALSE,
+           main=c(paste0("Engine: ", engine, ", ", field.station), et.choice))
+      AddAxis(rad.ma)
+      par(mar=c(0, 5, 0, 2))
+      plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)),
+           axes=FALSE)
+      AddAxis(temp.ma)
+      plot(period, sohe.ma, xlim=xl, type="l", ylab=(SHF~(W~m^{-2})),
+           axes=FALSE)
+      AddAxis(sohe.ma)
+      plot(period, somo.ma, xlim=xl, type="l",
+           ylab=expression(S.moist~({}-{})), axes=F)
+      AddAxis(somo.ma)
+      plot(period, hum.ma, xlim=xl, type="l", ylab=(Rel.hum.~("%")),
+           axes=FALSE)
+      AddAxis(hum.ma)
+      plot(period, wind.ma, xlim=xl, type="l", ylab=(Wind~(m~s^{-1})),
+           axes=FALSE)
+      AddAxis(wind.ma)
+      par(mar=c(4, 5, 0, 2))
+      plot(period, as.numeric(fs.list[[8]][period]), xlim=xl,
+           ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
       par(new=T)
       plot(period[-1], as.numeric(res.xts), xlim=xl, ylim=c(-.1, 2), col=2,
            xlab="Date", ylab="", type="l")
       legend("topright", c("simulation", "observation"), lty=1,
              col=c(2, "gray40"), bty="n")
       dev.off()
+
     } else {
     # Morocco
+
       pdf("plot_et_compare_morocco.pdf")
       ma.width <- ma.width
       period <- seq(as.POSIXct(tstart, tz="UTC"), 

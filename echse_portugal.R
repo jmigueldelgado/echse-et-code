@@ -16,9 +16,9 @@ Sys.setenv(TZ="UTC")
 # PROGRAM PARAMETERS -----------------------------------------------------------
 
 output <- "evap"  # [evap, glorad, gloradmax, rad_net, radex, soilheat]
-field.station <- "HS"  # [HS, NSA]
-et.choice <- "etp"  # potential or actual evapotranspiration [etp, eta]
-et.choice[2] <- 13  # model [1=Makk, 11=PM, 12=FAO, 13=SW]
+field.station <- "NSA"  # [HS, NSA]
+et.choice <- "eta"  # potential or actual evapotranspiration [etp, eta]
+et.choice[2] <- 11  # model [1=Makk, 11=PM, 12=FAO, 13=SW]
 wc.new <- T  # logical: Shall the newly calculated soil moisture data be used?
 
 # model period: start & end of model period, note the format!
@@ -28,7 +28,6 @@ if (output %in% c("gloradmax", "rad_net", "radex")) {
 } else if (field.station == "HS") {
 # HS
   tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
-  #tstart <- "2014-05-09 01:00:00"; tend <- "2014-05-10 01:00:00"
   #tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
   #tstart <- "2014-05-22 15:00:00"; tend <- "2014-05-25 21:00:00"
   #tstart <- "2014-06-17 12:00:00"; tend <- "2014-06-21 17:00:00"
@@ -485,9 +484,9 @@ f_day <- .1
 f_night <- .7
 fcorr_a <- 1.35
 fcorr_b <- -.35
-h_humMeas <- ifelse(field.station=="NSA", 7.98, 2)
-h_tempMeas <- ifelse(field.station=="NSA", 7.98, 2)
-h_windMeas <- ifelse(field.station=="NSA", 7.98, 2)
+h_humMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
+h_tempMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
+h_windMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
 na_val <- "-9999."
 radex_a <- .25
 radex_b <- .5
@@ -616,8 +615,8 @@ print.xtable(sharedParamNum.tex,
 
 alb <- echseParEst("alb", rsdfile="data/portugal/Kdown",
                    rsufile="data/portugal/Kup", plots=TRUE)
-cano_height <- ifelse(field.station=="NSA", 7.98, 0.20)
-lai <- ifelse(field.station == "NSA", 1.397, 0.778)
+cano_height <- 0.20  # ifelse(field.station=="NSA", 7.98, 0.20)
+lai <- 0.778  # ifelse(field.station == "NSA", 1.397, 0.778)
 
 inputExt.df <- data.frame(Parameter=c(paste0("\\", "verb!alb!"),
                                       paste0("\\", "verb!cano_height!"),
