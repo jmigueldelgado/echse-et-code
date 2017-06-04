@@ -1,10 +1,9 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-28
+# Last Edit: 2017-06-04
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
-# TODO(2017-05-28): check calculation of emis in case of no rhum data available
 ################################################################################
 
 rm(list=ls())
@@ -16,10 +15,11 @@ Sys.setenv(TZ="UTC")
 # PROGRAM PARAMETERS -----------------------------------------------------------
 
 output <- "evap"  # [evap, glorad, gloradmax, rad_net, radex, soilheat]
-field.station <- "NSA"  # [HS, NSA]
+field.station <- "HS"  # [HS, NSA]
 et.choice <- "eta"  # potential or actual evapotranspiration [etp, eta]
-et.choice[2] <- 11  # model [1=Makk, 11=PM, 12=FAO, 13=SW]
+et.choice[2] <- 13  # model [1=Makk, 11=PM, 12=FAO, 13=SW]
 wc.new <- T  # logical: Shall the newly calculated soil moisture data be used?
+emismeth <- "Brunt"  # [Brunt, Idso, both]; method for calculating net emissivity
 
 # model period: start & end of model period, note the format!
 if (output %in% c("gloradmax", "rad_net", "radex")) {
@@ -27,8 +27,8 @@ if (output %in% c("gloradmax", "rad_net", "radex")) {
   tend <- "2014-07-01 05:00:00"
 } else if (field.station == "HS") {
 # HS
-  tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
-  #tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
+  #tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
+  tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
   #tstart <- "2014-05-22 15:00:00"; tend <- "2014-05-25 21:00:00"
   #tstart <- "2014-06-17 12:00:00"; tend <- "2014-06-21 17:00:00"
   #tstart <- "2014-06-26 01:00:00"; tend <- "2014-07-01 07:00:00"
@@ -45,12 +45,11 @@ if (output %in% c("gloradmax", "rad_net", "radex")) {
 }
 
 # Shall the model period strictly exclude times with missing data?
+no.na <- TRUE
 
-no.na <- T
-
-# For rad_net & radex, we need a maximum of the data, so no.na is unchecked.
+# For rad_net & radex, we need many data, so no.na is unchecked.
 if (output %in% c("gloradmax", "rad_net", "radex"))
-  no.na <- F
+  no.na <- FALSE
 
 # declare availability of input data
 A <- list(alb=1,
@@ -122,8 +121,9 @@ source("echsePost.R")  # postprocessing
 source("echsePre.R")  # preprocessing
 
 # load packages
-CheckPack(c("MASS", "RAtmosphere", "TTR", "xtable", "xts"))
 library(MASS)  # write.matrix()
+library(RAtmosphere)  # suncalc() in echseParEst() for f_day, f_night
+library(TTR)  # runMean() in echsePost()
 library(xtable)  # latex tables
 library(xts)  # time series handling
 
@@ -131,7 +131,7 @@ library(xts)  # time series handling
 # meteo data
 HS.full <- get(load("data/portugal/meteo_HS.Rdata"))
 NSA.full <- get(load("data/portugal/meteo_NSA.Rdata"))
-meteo <- na.omit(read.csv("data/portugal/meteo_ok.csv", header=T))  # meteo stat
+meteo <- na.omit(read.csv("data/portugal/meteo_ok.csv", header=TRUE))
 radl.down <- readRDS("data/portugal/Ldown")  # field station
 radl.up <- readRDS("data/portugal/Lup")      # ditto
 rads.down <- readRDS("data/portugal/Kdown")  # ditto
@@ -428,7 +428,7 @@ crop_makk <- .8
 glo_half <- 200
 par_stressHum <- .03
 res_leaf_min <- 50
-wstressmax <- 15849
+wstressmax <- 15849  # -> thesis
 wstressmin <- 100
 
 # collect individual parameters
@@ -520,7 +520,7 @@ if (output != "radex") {
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          field.station, "/test1.txt"),
                            rsdfile="data/portugal/Kdown",
-                           r.quantile=0.05, plots=TRUE)
+                           r.quantile=0.05, plots=FALSE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }
@@ -537,13 +537,12 @@ emis.out <- echseParEst("emis",
                         rlufile="data/portugal/Lup",
                         tafile=paste0(path.meteo, "temper_data.dat"),
                         hrfile=paste0(path.meteo, "rhum_data.dat"),
+                        field.station=field.station,
                         radex_a=radex_a,
                         radex_b=radex_b)
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
-# emismeth == "both" is used for direct comparison of emissivity methods.
-emismeth <- "Idso"
 fcorr.out <- echseParEst("fcorr",
                          rldfile="data/portugal/Ldown",
                          rlufile="data/portugal/Lup",
@@ -553,7 +552,7 @@ fcorr.out <- echseParEst("fcorr",
                                        field.station, "/test1.txt"),
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
-                         radex_b=radex_b, emismeth=emismeth, plots=TRUE)
+                         radex_b=radex_b, emismeth=emismeth, plots=FALSE)
 fcorr_a <- fcorr.out$a
 fcorr_b <- fcorr.out$b
 

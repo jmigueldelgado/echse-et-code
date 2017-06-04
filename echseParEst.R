@@ -20,6 +20,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         sheatfile = NA,  # file with soil heat flux data*
                         tafile = NA,  # file with mean air temperature data*
                                       # *Supply complete file path!
+                        field.station = NA,  # [HS, NSA]
                         emis_a = NA,  # net emissivity coefficient
                         emis_b = NA,  # ditto
                         lat = 0,  # latitude for calculating sunrise/-set
@@ -30,6 +31,16 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         emismeth = NA,  # emissivity method [Brunt, Idso, both]
                         plots = TRUE  # plots for visual diagnosis?
                         ) {
+
+  #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  # This function contains methods for estimating parameters involved
+  # in the evapotranspiration engines of ECHSE.
+  # Methods are discussed in the documentation.
+  # Abbreviations: rlu = Upward Long-wave Radiation,
+  #                rsd = Downward Short-wave Radiation, ...
+  #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+  # FUNCTIONS ------------------------------------------------------------------
 
   EmisBrunt <- function(emis_a,  # emissivity parameter a (intersect)
                         emis_b,  # emissivity parameter b (slope)
@@ -84,12 +95,15 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     vars.ls <- list()
     for (i in 1:length(vars)) {
       if (vars[i] %in% c("rsd", "rsu", "rld", "rlu")) {
+        # These variables have sub-hourly data.
         vars.ls[[i]] <- ReadToHlyMean(get(paste0(vars[i], "file")))
       } else {
+        # These variables have hourly data.
         vars.ls[[i]] <- ReadToXts(get(paste0(vars[i], "file")))
       }
     }
 
+    # collect all data needed for estimation in one xts object
     est.dat <- vars.ls[[1]]
     if (length(vars.ls) > 1) {
       for (i in 2:length(vars))
@@ -99,83 +113,87 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
   }
 
+
+  # PARAMETER ESTIMATION -------------------------------------------------------
+
   if (length(grep("alb", parname)) != 0) {
-  # albedo
+  # estimation of albedo
   # requires: rsd, rsu
 
     # collect estimation data
     est.dat <- GenerateEstDat(c("rsd", "rsu"))
+
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
     # and to times when gr & rsu != 0
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rsd != 0 & est.dat$rsu != 0
     alb.series <- with(est.dat, rsu[ix] / rsd[ix])
+    alb <- mean(alb.series[alb.series < 1])
+ 
     # diagnostic plot
     if (plots) {
       pdf("doku/plot_alb.pdf", width=6, height=4)
-      plot(apply.daily(alb.series[alb.series < 1], mean),
-           ylab=expression(mu), main="", type="p", pch=20)
+      plot(apply.daily(alb.series[alb.series < 1], mean), ylab=(mu), main="",
+           type="p", pch=20)
       dev.off()
     }
-    alb <- mean(alb.series[alb.series < 1])
+
     return(alb)
 
   } else if (length(grep("radex", parname)) != 0) {
-  # radex parameters
+  # estimation of radex parameters
   # requires: rsd, rx
 
     # collect estimation data
     est.dat <- GenerateEstDat(c("rx", "rsd"))
+
     # restrict to times between 8:00 and 16:00 to avoid odd night effects
     # and to times when rx != 0 and where rsd > 50 W.m-2
     ix <- as.numeric(format(index(est.dat), "%H")) < 17 &
           as.numeric(format(index(est.dat), "%H")) > 7 &
           est.dat$rx != 0 & est.dat$rsd > 50
+
     # calculate ratio of rx and rsd
     rad.ratio <- with(est.dat[ix], as.numeric(rsd) / as.numeric(rx))
+
     # maximum ratio per hour
-    MaxRadRatio <- function(i) {
+    MaxRadRatio <- function(i  # hour [0...23]
+                            ) {
+      # determines the maximum value of rad.ratio within hour i
+
+      hour.is.i <- as.numeric(format(index(est.dat[ix]), "%H")) == i
       out <- NA
-      if (any(as.numeric(format(index(est.dat[ix]), "%H")) == i))
-        rad.ratio2 <- rad.ratio[as.numeric(format(index(est.dat[ix]),
-                                                  "%H")) == i]
+      if (any(hour.is.i))
+        rad.ratio2 <- rad.ratio[hour.is.i]
       if (exists("rad.ratio2")) {
         out <- max(rad.ratio2[rad.ratio2 < 1], na.rm=T)
         return(out)
       }
     }
     r.max <- max(sapply(8:16, MaxRadRatio), na.rm=T)
+
     # diagnostic plots
     if (plots) {
       # plot histogram of calculated ratios
-      S <- FALSE
-      repeat {
-        hist(rad.ratio, xlab="glorad/radex", breaks="Sturges", main="",
-             xlim=c(0, 1))
-        if (S)
-          break
-        pdf("doku/plot_radex1.pdf")
-        S <- TRUE
-      }
+      pdf("doku/plot_radex1.pdf")
+      hist(rad.ratio, xlab="glorad/radex", breaks="Sturges", main="",
+           xlim=c(0, 1))
       dev.off()
+
       # plot rad.ratio over hours of day to detect subdaily trends
-      S <- FALSE
-      repeat {
-        plot(as.numeric(format(index(est.dat$rx[ix]), "%H")), rad.ratio,
-             ylim=c(0, 1), xlab="hour of day", ylab="glorad/radex")
-        abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
-        if (S)
-          break
-        pdf("doku/plot_radex2.pdf")
-        S <- TRUE
-      }
+      pdf("doku/plot_radex2.pdf")
+      plot(as.numeric(format(index(est.dat$rx[ix]), "%H")), rad.ratio,
+           ylim=c(0, 1), xlab="hour of day", ylab="glorad/radex")
+      abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
       dev.off()
+
       # plot extraterr. and global radiation to detect time shifts
-      plot(est.dat$rx, type="l", ylim=c(0, max(as.numeric(est.dat$rx))),
-           xlab="date", ylab="rad (black: rx, red: gr)", main="")
-      lines(est.dat$rsd, col=2)
+      #plot(est.dat$rx, type="l", ylim=c(0, max(as.numeric(est.dat$rx))),
+      #     xlab="Date", ylab="Rad (black: radex, red: glorad)", main="")
+      #lines(est.dat$rsd, col=2)
     }
+
     # return parameters
     out <- c(# radex_a
              as.numeric(quantile(rad.ratio, r.quantile, na.rm=T)),
@@ -184,7 +202,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     return(out)
 
   } else if (length(grep("fcorr", parname)) != 0) {
-  # fcorr parameters
+  # estimation of fcorr parameters
   # requires: hr, rld, rlu, rsd, rx, ta, radex_a, radex_b
 
     # collect estimation data
@@ -211,27 +229,27 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     sig <- 5.670367E-8  # Stefan constant
     if (plots) {
       with(est.dat, plot(as.numeric(ta), as.numeric(rld - rlu),
-           main="", xlab=expression("Mean air temperature"~({}^o~C)),
-           ylab=expression("Net LW radiation"~(W~m^{-2}))))
+           main="", xlab=("Mean air temperature"~({}^o~C)),
+           ylab=("Net LW radiation"~(W~m^{-2}))))
       if (emismeth == "both") {
         par(mfrow=c(2, 1), mar=c(1, 5, 2, 1))
         with(est.dat,
              plot(as.numeric(emis.brunt), as.numeric(rld - rlu), xaxt="n",
                   main="", xlab="Net emissivity",
-                  ylab=expression(Net~LW~radiation~(W~m^{-2}))))
+                  ylab=(Net~LW~radiation~(W~m^{-2}))))
         text(0.22, -80, "Brunt")
         par(mar=c(5, 5, 0, 1))
         with(est.dat,
              plot(as.numeric(emis.idso), as.numeric(rld - rlu),
                   main="", xlab="Net emissivity",
-                  ylab=expression(Net~LW~radiation~(W~m^{-2}))))
+                  ylab=(Net~LW~radiation~(W~m^{-2}))))
         text(0.18, -80, "Idso & Jackson")
       } else {
         par(mfrow=c(1, 1))
         with(est.dat,
              plot(as.numeric(emis), as.numeric(rld - rlu),
                   main=emismeth, xlab="Net emissivity",
-                  ylab=expression("Net LW radiation"~(W~m^{-2}))))
+                  ylab=("Net LW radiation"~(W~m^{-2}))))
       }
     }
     if (emismeth == "both") {
@@ -288,7 +306,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
         par(mar=c(4, 4, 0, 1))
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(f.idso),
-                  main="", xlab=expression(R[inS]/R[inS*","*cs]),
+                  main="", xlab=(R[inS]/R[inS*","*cs]),
                   ylab="fcorr"))
         abline(mod.idso, col=4)
         abline(mod.maid, lty="dashed", col=4)
@@ -299,7 +317,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
       } else {
         with(est.dat[ix],
              plot(as.numeric(rsd / rsdmax), as.numeric(f),
-                  main=emismeth, xlab=expression(R[inS]/R[inS,cs]),
+                  main=emismeth, xlab=(R[inS]/R[inS,cs]),
                   ylab="fcorr"))
         abline(mod, col=4)
         abline(mod.maid, lty="dashed", col=4)
@@ -321,7 +339,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     }
 
   } else if (length(grep("emis", parname)) != 0) {
-  # emis parameters
+  # estimation of emis parameters
   # requires: hr, rsd, rld, rlu, rx, ta, radex_a, radex_b
 
     # collect estimation data
@@ -343,14 +361,14 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     est.dat$emis <- with(est.dat[ix.rsdmax],
                          - (rld - rlu) / (sig * (ta + 273.15) ^ 4))
     # (4) plot observation-based emissivity against models
-    pdf("doku/plot_emis_both.pdf", height=5, width=9)
+    pdf(paste0("doku/plot_emis_both_", field.station, ".pdf"), height=5, width=9)
     par(mfrow=c(1, 2))
     with(est.dat[ix.rsdmax & !ix.noon],
          plot(as.numeric(EmisBrunt(0.34, -0.14,
                                    est.dat[ix.rsdmax & !ix.noon]$vap / 10)),
               emis, xlim=c(0, 0.25), ylim=c(0, 0.25),
-              xlab=expression(epsilon*", predicted by Brunt model"),
-              ylab=expression(epsilon*", derived from observations")))
+              xlab=(epsilon*", predicted by Brunt model"),
+              ylab=(epsilon*", derived from observations")))
     with(est.dat[ix.noon],
          points(as.numeric(EmisBrunt(0.34, -0.14,
                                      est.dat[ix.noon]$vap / 10)),
@@ -360,7 +378,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     with(est.dat[ix.rsdmax & !ix.noon],
          plot(as.numeric(EmisIdso(est.dat[ix.rsdmax & !ix.noon]$ta)),
               emis, xlim=c(0, 0.25), ylim=c(0, 0.25), ylab="",
-              xlab=expression(epsilon*", predicted by Idso-Jackson model")))
+              xlab=(epsilon*", predicted by Idso-Jackson model")))
     with(est.dat[ix.noon],
          points(as.numeric(EmisIdso(est.dat[ix.noon]$ta)),
                 emis, pch=20))
@@ -371,10 +389,9 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     return(c(.34, -.14))
 
   } else if (length(grep("f", parname)) != 0) {
-  # soil heat fraction parameters
-
-    # load RAtmosphere library for calculating sunrise/sunset hours
-    library(RAtmosphere)
+  # estimation of soil heat fraction parameters
+  # requires rnet, sheat
+  # requires the RAtmosphere package!
 
     # collect estimation data
     est.dat <- GenerateEstDat(c("rnet", "sheat"))

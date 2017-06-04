@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-10-10
+# Last Edit: 2017-06-04
 # Project: ECHSE evapotranspiration
 # Functions: echseCtrl_cnf, echseCtrl_out, echseCtrl_loc, echseCtrl_fil, 
 #            echseCtrl_shpar, echseCtrl_par, echseCtrl_ini
@@ -111,7 +111,7 @@ echseCtrl_loc <- function(engine,     # engine name
                           locs        # list of location names for input data
                           ) { 
 
-  # writes control file for extern input locations
+  # writes control file for external input locations
 
   object <- "test1"
   variable <- unlist(mapply(function(x, y) {

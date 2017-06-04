@@ -15,6 +15,10 @@ echsePost <- function(engine,  # name of ECHSE engine
                       wc_etmax  # min soil water content for max eta
                       ) {
 
+  #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  # requires the TTR package!
+  #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  
   AddAxis <- function(data
                       ) {
     pr <- pretty(range(data, na.rm=TRUE))
@@ -28,7 +32,6 @@ echsePost <- function(engine,  # name of ECHSE engine
 
   # SET AND LOAD ---------------------------------------------------------------
 
-  library(TTR)
   results <- read.delim(paste0("~/uni/projects/", engine, "/run/out/test1.txt"),
                         sep="\t")
 
