@@ -1,9 +1,9 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-11-27
+# Last Edit: 2017-06-08
 # Project: ECHSE Evapotranspiration
 # Functions: echseSelect, echseTimeSeq
-# Aim: Providing Information for Data Preprocessing
+# Aim: Functions used in Data Preprocessing for ECHSE
 ################################################################################
 
 echseSelect <- function(output  # output variable of engine
@@ -146,8 +146,7 @@ echseSelect <- function(output  # output variable of engine
     I <- 0
   }
 
-  list(DAT=DAT, PAR=PAR, SHP=SHP, STV=STV, I=I)
-
+  return(list(DAT=DAT, PAR=PAR, SHP=SHP, STV=STV, I=I))
 }
 
 #----
@@ -162,6 +161,5 @@ echseTimeSeq <- function(t.index,  # time index, POSIX formatted
   i <- match(T, unlist(lapply(strsplit(as.character(t.index), " "),
                               function(x)
                                 x[2] == strsplit(tstart, " ")[[1]][2])))
-  seq(t.index[i], tail(t.index, 1), by=paste(dt, "sec"))
-
+  return(seq(t.index[i], tail(t.index, 1), by=paste(dt, "sec")))
 }
