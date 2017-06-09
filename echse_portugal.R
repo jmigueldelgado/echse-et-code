@@ -1,11 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-08
+# Last Edit: 2017-06-09
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
 #      (Herdade do Machuqueira do Grou)
-# TODO(2017-06-08): finish function TimeSeq (L207), then apply it where needed
 ################################################################################
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -27,7 +26,7 @@ assign("last.warning", NULL, envir=baseenv())
 Sys.setenv(TZ="UTC")
 
 
-# PROGRAM PARAMETERS -----------------------------------------------------------
+# PROGRAM PARAMETERS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # choose output [evap, glorad, gloradmax, rad_net, radex, soilheat]
 output <- "evap"
@@ -143,7 +142,7 @@ locs <- list(field.station,  # alb
              field.station)  # wind
 
 
-# PACKAGES & DATA --------------------------------------------------------------
+# PACKAGES & DATA ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # set working directory
 #if (system("hostname", intern=TRUE) == "raspberrypi") {
@@ -182,7 +181,7 @@ wc.HS <- read.table("data/portugal/soil_moisture_HS.txt", header=T, sep="\t")
 wc.NSA <- read.table("data/portugal/soil_moisture_NSA.txt", header=T, sep="\t")
 
 
-# FUNCTIONS --------------------------------------------------------------------
+# FUNCTIONS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # load scripts
 if (system("hostname", intern=TRUE) == "raspberrypi")
@@ -195,21 +194,19 @@ source("echsePre.R")  # preprocessing
 
 TimeSeq <- function(data,  # list of xts objects
                     dt,  # time interval, as character (see ?seq.Date, Details)
-                    start  # start at full ... [mins, hours, days, ...]
+                    at.full  # start at full ... [mins, hours, days, ...]
                     ) {
   # creates time sequence of specified constant interval dt
   # covering the whole period of data
 
-  # !!!
-  # resume here
-  # !!!
+  mi <- min(index(data), na.rm=TRUE)
+  ma <- max(index(data), na.rm=TRUE)
+
   # select index of first occurence of full ... (first full hour, e.g.)
-  min(which())
+  ep <- endpoints(data, on="hours") + 1  # endpoint selects last of ...
+  mi.new <- index(data)[ep[2]]  # ep[1] = 1 by default, ep[2] is first full hour
 
-  mi <- min(sapply(data, function(i) min(index(i))), na.rm=TRUE)
-  ma <- max(sapply(data, function(i) max(index(i))), na.rm=TRUE)
-
-  return(seq(mi, ma, dt))
+  return(seq(mi.new, ma, dt))
 }
 
 RadPrep <- function(data  # xts object (radiation component)
@@ -219,16 +216,16 @@ RadPrep <- function(data  # xts object (radiation component)
   # remove duplicates
   data <- data[!duplicated(index(data))]
   # fill up missing dates
-  seq.10min <- seq(index(data)[3], tail(index(data), 1), by="10 min")
-  seq.1h <- seq(index(data)[3], tail(index(data), 1), by="hours")
+  seq.10min <- TimeSeq(data, "10 min", "hours")
   data <- merge(xts(order.by=seq.10min), data)
   # return hourly means
+  seq.1h <- TimeSeq(data, "1 hour", "hours")
   return(xts(period.apply(data, seq.int(1, length(seq.10min), by=6), mean),
              order.by=seq.1h[-length(seq.1h)]))
 }
 
 
-# DATA PREPROCESSING -----------------------------------------------------------
+# DATA PREPROCESSING :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # check for correct program parameters
 if (!(field.station %in% c("HS", "NSA")))
@@ -243,8 +240,6 @@ if (!(emismeth %in% c("Brunt", "Idso", "both")))
 
 # some basic variables
 engine <- paste(output, "portugal", sep="_")  # engine name: output_location
-years <- seq(min(tower$year, format(index(HS), "%Y"), format(index(NSA), "%Y")),
-             max(tower$year, format(index(HS), "%Y"), format(index(NSA), "%Y")))
 if (et.choice[2] == 1) {
   etmeth <- "makkink"
 } else if (et.choice[2] == 11) {
@@ -257,11 +252,6 @@ if (et.choice[2] == 1) {
 
 # ECHSE data & variable & parameter selection for writing control files
 selection <- echseSelect(output)
-
-# lists
-HS.list <- NULL
-NSA.list <- NULL
-tower.list <- NULL
 
 # labels for plotting input data
 HS.names <- c((Net~Radiation~(W~m^{-2})),
@@ -290,7 +280,7 @@ tower.names <- c("PARgl (unit?)",
                  (Rainfall~(mm~d^{-1})),
                  (Barometric~pressure~(hPa)))
 
-# FIELD STATION DATA ...........................................................
+# FIELD STATION DATA -----------------------------------------------------------
 
 # prepare radiation data
 rld.hly <- RadPrep(rld)
@@ -306,14 +296,14 @@ NSA <- merge(NSA, rld.hly, rlu.hly, rsd.hly, rsu.hly, rld.hly - rlu.hly,
             tzone="UTC")
 NSA <- merge(xts(order.by=seq(min(index(NSA)), max(index(NSA)), by="hours")),
              NSA)
-names(HS[, tail(names(HS), 5)]) <- c("RLdown", "RLup", "RSdown", "RSup",
-                                     "RLnet")
-names(NSA[, tail(names(NSA), 5)]) <- c("RLdown", "RLup", "RSdown", "RSup",
-                                       "RLnet")
 
-# make xts to list objects for simpler access to data
+# convert xts to list objects (simpler access to data later on)
 HS <- as.list(HS)
 NSA <- as.list(NSA)
+names(HS) <- c(head(names(HS), length(HS) - 5),
+               "RLdown", "RLup", "RSdown", "RSup", "RLnet")
+names(NSA) <- c(head(names(NSA), length(NSA) - 5),
+                "RLdown", "RLup", "RSdown", "RSup", "RLnet")
 
 # create mask of NA intervals
 if (field.station == "HS") {
@@ -339,38 +329,35 @@ if (no.na && na.present)
   stop("Model period contains missing data and no.na == TRUE.")
 
 # soil moisture data: fill up missing dates (15 min sequence)
-seq.15min <- seq(as.POSIXct(wc.HS$date[1]), as.POSIXct(tail(wc.HS$date, 1)),
-                 by="15 min")
-wc.HS <- merge(xts(wc.HS$sm, order.by=as.POSIXct(wc.HS$date)),
-               xts(order.by=seq(as.POSIXct(wc.HS$date[1]),
-                                as.POSIXct(tail(wc.HS$date, 1)), by="15 min")))
-wc.NSA <- merge(xts(wc.NSA$sm, order.by=as.POSIXct(wc.NSA$date)),
-                xts(order.by=seq(as.POSIXct(wc.NSA$date[1]),
-                                 as.POSIXct(tail(wc.NSA$date, 1)), by="15 min")))
+wc.HS <- xts(wc.HS$sm, order.by=as.POSIXct(wc.HS$date))
+wc.HS <- merge(wc.HS, xts(order.by=TimeSeq(wc.HS, "15 min", "hours")))
+wc.NSA <- xts(wc.NSA$sm, order.by=as.POSIXct(wc.NSA$date))
+wc.NSA <- merge(wc.NSA, xts(order.by=TimeSeq(wc.NSA, "15 min", "hours")))
 # take hourly data
-ep.HS <- endpoints(wc.HS.xts, on="hours") + 1
-wc.HS.xts <- xts(period.apply(wc.HS.xts, ep.HS[-length(ep.HS)], mean),
-                 order.by=index(wc.HS.xts)[ep.HS[-c(1, length(ep.HS))]])
-ep.NSA <- endpoints(wc.NSA.xts, on="hours") + 1
-wc.NSA.xts <- xts(period.apply(wc.NSA.xts, ep.NSA[-length(ep.NSA)], mean),
-                  order.by=index(wc.NSA.xts)[ep.NSA[-c(1, length(ep.NSA))]])
+ep.HS <- endpoints(wc.HS, on="hours") + 1
+wc.HS <- xts(period.apply(wc.HS, ep.HS[-length(ep.HS)], mean),
+             order.by=index(wc.HS)[ep.HS[-c(1, length(ep.HS))]])
+ep.NSA <- endpoints(wc.NSA, on="hours") + 1
+wc.NSA <- xts(period.apply(wc.NSA, ep.NSA[-length(ep.NSA)], mean),
+              order.by=index(wc.NSA)[ep.NSA[-c(1, length(ep.NSA))]])
 if (!wc.new) {
   # Set soil moisture to zero where negative ...
-  HS.list[[4]][HS.list[[4]] < 0] <- 0
-  NSA.list[[4]][NSA.list[[4]] < 0] <- 0
+  HS[[4]][HS[[4]] < 0] <- 0
+  NSA[[4]][NSA[[4]] < 0] <- 0
 } else {
   # ... or use new data instead.
-  date.rg.HS <- range(index(HS.list[[4]]))
-  date.rg.NSA <- range(index(NSA.list[[4]]))
-  HS.list[[4]] <- wc.HS.xts[index(wc.HS.xts) >= date.rg.HS[1]
-                              & index(wc.HS.xts) <= date.rg.HS[2]]
-  NSA.list[[4]] <- wc.NSA.xts[index(wc.NSA.xts) >= date.rg.NSA[1]
-                                & index(wc.NSA.xts) <= date.rg.NSA[2]]
+  datrg.HS <- range(index(HS[[4]]))
+  datrg.NSA <- range(index(NSA[[4]]))
+  HS[[4]] <- wc.HS[index(wc.HS) >= datrg.HS[1] & index(wc.HS) <= datrg.HS[2]]
+  NSA[[4]] <- wc.NSA[index(wc.NSA) >= datrg.NSA[1] &
+                     index(wc.NSA) <= datrg.NSA[2]]
 }
 
-# TOWER DATA :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+# TOWER DATA -------------------------------------------------------------------
 
 tower$date <- NA  # date (Y-m-d)
+class(tower$date) <- "Date"
 
 # hhmm==0 is understood as 24:00 in file but as 0:00 here;
 # therefore increase doy by 1
@@ -378,76 +365,67 @@ tower$date <- NA  # date (Y-m-d)
 tower$doy[which(tower$hhmm == 0)] <- tower$doy[which(tower$hhmm == 0)] + 1
 
 # convert dates into POSIX-readable dates
-for (j in 1:length(years)) {
-  tower$date[tower$year == years[j]] <- 
-    as.Date(tower$doy[which(tower$year == years[j])], 
-            origin=paste0(years[j] - 1, "-12-31"))
+years <- as.numeric(unique(c(tower$year, format(index(HS$R), "%Y"))))
+for (y in years) {
+  tower$date[tower$year == y] <- as.Date(tower$doy[tower$year == y],
+                                         origin=paste0(y - 1, "-12-31"))
 }
-tower$date <- as.Date(tower$date)
 hours <- sprintf("%02d", floor(tower$hhmm / 100))
 minutes <- sprintf("%02d", tower$hhmm - (floor(tower$hhmm / 100) * 100))
 seconds <- sprintf("%02d", rep(0, length(tower$hhmm)))
-tower$dati <- paste0(tower$date, " ", hours, ":", minutes, ":", seconds)
+tower$dati <- paste0(as.character(tower$date), " ", hours, ":", minutes, ":",
+                     seconds)
 
 # select relevant columns, convert to xts
-tower <- tower[, -c(1, 2, 3, 4, ncol(tower) - 2, ncol(tower) - 1)]
-tower.xts <- xts(tower[2:nrow(tower), ],
-                 order.by=as.POSIXct(tower$dati[1:(nrow(tower) - 1)],
-                                     tz="UTC"),
-                 tzone="UTC")
+tower <- tower[, -c(1:5, ncol(tower) - 1:3)]
+tower <- xts(tower[2:nrow(tower), -ncol(tower)],
+             order.by=as.POSIXct(tower$dati[2:nrow(tower)]), tzone="UTC")
 
 # fill up missing dates
-suppressWarnings(
-  tower.xts <- merge(xts(order.by=seq(index(tower.xts)[1], 
-                                      tail(index(tower.xts), 1), 
-                                      by="30 min"), tzone="UTC"), 
-                     tower.xts, tzone="UTC")
-)
+tower <- merge(xts(order.by=TimeSeq(tower, "30 min", "30 mins")), tower,
+               tzone="UTC")
 
 # simulation time sequence
-time.seq <- echseTimeSeq(index(tower.xts), tstart, dt)
+timeseq <- echseTimeSeq(index(tower), tstart, dt)
 
-# split data into list elements for further processing
-for (k in 1:8)
-  tower.list[[k]] <- tower.xts[, k + 1]
+# convert xts to list objects (simpler access to data later on)
+tower <- as.list(tower)
 
 # fill up missing global radiation data with meteo data
-na.dates.HS.r <- index(HS.list[[1]][is.na(HS.list[[1]])])
-na.dates.NSA.r <- index(NSA.list[[1]][is.na(NSA.list[[1]])])
-HS.list[[1]][na.dates.HS.r] <- ifelse(length(na.dates.HS.r) != 0,
-                                      tower.list[[3]][na.dates.HS.r], NA)
-NSA.list[[1]][na.dates.NSA.r] <- ifelse(length(na.dates.NSA.r) != 0,
-                                        tower.list[[3]][na.dates.NSA.r], NA)
+#na.dates.HS.r <- index(HS.list[[1]][is.na(HS.list[[1]])])
+#na.dates.NSA.r <- index(NSA.list[[1]][is.na(NSA.list[[1]])])
+#HS.list[[1]][na.dates.HS.r] <- ifelse(length(na.dates.HS.r) != 0,
+#                                      tower.list[[3]][na.dates.HS.r], NA)
+#NSA.list[[1]][na.dates.NSA.r] <- ifelse(length(na.dates.NSA.r) != 0,
+#                                        tower.list[[3]][na.dates.NSA.r], NA)
 
 # fill up missing temperature data with meteo data
-na.dates.HS.t <- index(HS.list[[2]][is.na(HS.list[[2]])])
-na.dates.NSA.t <- index(NSA.list[[2]][is.na(NSA.list[[2]])])
-HS.list[[2]][na.dates.HS.t] <- ifelse(length(na.dates.HS.t) != 0,
-                                      tower.list[[5]][na.dates.HS.t], NA)
-NSA.list[[2]][na.dates.NSA.t] <- ifelse(length(na.dates.NSA.t) != 0,
-                                        tower.list[[5]][na.dates.NSA.t], NA)
+#na.dates.HS.t <- index(HS.list[[2]][is.na(HS.list[[2]])])
+#na.dates.NSA.t <- index(NSA.list[[2]][is.na(NSA.list[[2]])])
+#HS.list[[2]][na.dates.HS.t] <- ifelse(length(na.dates.HS.t) != 0,
+#                                      tower.list[[5]][na.dates.HS.t], NA)
+#NSA.list[[2]][na.dates.NSA.t] <- ifelse(length(na.dates.NSA.t) != 0,
+#                                        tower.list[[5]][na.dates.NSA.t], NA)
 
 # derive sunshine hours according to WMO, 2003 (time for which rad > 120 W.m-2)
 if (dt == 86400) {
-  rad <- tower.xts[index(tower.xts) >= time.seq[1] & 
-                   index(tower.xts) <= tail(time.seq, 1), 3]
+  rad <- tower[index(tower) >= timeseq[1] & index(tower) <= tail(timeseq, 1), 3]
   # add up to multiple of 48 length
   length(rad) <- length(rad) + 48 - length(rad) %% 48
   # matrix with days (rows) and 48 half hours (columns)
   rad.mat <- matrix(rad, ncol=48, byrow=T)
-  sundur.val <- c()
+  sundur <- c()
   days <- 1:nrow(rad.mat)
   for (i in days)
-    sundur.val[i] <- length(rad.mat[i, na.omit(rad.mat[i, ]) > 120]) / 2
-  sundur.xts <- xts(sundur.val,
-                    order.by=seq(index(tower.xts[time.seq])[1],
-                                 tail(index(tower.xts[time.seq]), 1),
-                                 by=paste(dt, "sec")))
+    sundur[i] <- length(rad.mat[i, na.omit(rad.mat[i, ]) > 120]) / 2
+  sundur <- xts(sundur, order.by=seq(index(tower[timeseq])[1],
+                                     tail(index(tower[timeseq]), 1),
+                                     by=paste(dt, "sec")))
 }
 
-# ENGINE PARAMETERS ------------------------------------------------------------
+# ENGINE PARAMETERS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-# INDIVIDUAL PARAMETERS
+# INDIVIDUAL PARAMETERS --------------------------------------------------------
 
 # geographical parameters: Silveira, Santarem, Portugal
 lat <- 39.14
@@ -477,11 +455,11 @@ if (any(HS.list[[4]] < wc_res, na.rm=TRUE))
 
 # plant parameters
 crop_faoref <- 1
-crop_makk <- .8
+crop_makk <- 0.8
 glo_half <- 200
-par_stressHum <- .03
+par_stressHum <- 0.03
 res_leaf_min <- 50
-wstressmax <- 15849  # -> thesis
+wstressmax <- ifelse(field.station == "HS", 13100, 14000)  # Gazdar, 2016
 wstressmin <- 100
 
 # collect individual parameters
@@ -693,7 +671,7 @@ echseInput(engine=engine,
            variable="alb",
            stn=field.station,
            const=alb,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("vegPar_time_series/", field.station, "/"))
 
 # apress (Air Pressure, hPa, AVER)
@@ -702,7 +680,7 @@ echseInput(engine=engine,
            na.val=mean(as.numeric(tower.list[[8]]), na.rm=T), 
            stn="tower", 
            column=8, 
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -711,12 +689,12 @@ echseInput(engine=engine,
            variable="cano_height",
            stn=field.station,
            const=cano_height,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("vegPar_time_series/", field.station, "/"))
 
 # doy (Day of Year, d)
-doy.df <- data.frame(end_of_interval=format(time.seq, "%Y-%m-%d %H:%M:%S"),
-                     as.numeric(strftime(time.seq, "%j", tz="UTC")))
+doy.df <- data.frame(end_of_interval=format(timeseq, "%Y-%m-%d %H:%M:%S"),
+                     as.numeric(strftime(timeseq, "%j", tz="UTC")))
 names(doy.df)[2] <- "any"
 write.matrix(doy.df, 
              paste0("~/uni/projects/", engine,
@@ -728,13 +706,13 @@ echseInput(engine=engine,
            variable="glorad",
            stn=field.station,
            column=14,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
 # hour (Hour of Day, h)
-hour.df <- data.frame(end_of_interval=format(time.seq, "%Y-%m-%d %H:%M:%S"),
-                      as.numeric(strftime(time.seq, "%H", tz="UTC")))
+hour.df <- data.frame(end_of_interval=format(timeseq, "%Y-%m-%d %H:%M:%S"),
+                      as.numeric(strftime(timeseq, "%H", tz="UTC")))
 names(hour.df)[2] <- "any"
 write.matrix(hour.df,
              paste0("~/uni/projects/", engine, 
@@ -746,7 +724,7 @@ echseInput(engine=engine,
            variable="lai",
            stn=field.station,
            const=lai,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("vegPar_time_series/", field.station, "/"))
 
 # rad_long (Net Incoming Long-Wave Radiation, W.m-2, AVER)
@@ -755,7 +733,7 @@ echseInput(engine=engine,
            na.val=0,
            stn=field.station,
            column=16,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -765,7 +743,7 @@ echseInput(engine=engine,
            na.val=0,  # not perfect
            stn=field.station,
            column=1,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -775,7 +753,7 @@ echseInput(engine=engine,
            na.val=mean(as.numeric(tower.list[[6]]), na.rm=T), 
            stn="tower",
            column=6,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -786,7 +764,7 @@ echseInput(engine=engine,
                        na.rm=T),  # not perfect
            stn=field.station,
            column=3,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -810,7 +788,7 @@ echseInput(engine=engine,
                        na.rm=T),  # not perfect
            stn=field.station, 
            column=2, 
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -819,7 +797,7 @@ echseInput(engine=engine,
            variable="utc_add",
            stn="any",
            const=0,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("vegPar_time_series/", field.station, "/"))
 
 # wc_vol_root (Water Content in Root Zone, -, AVER)
@@ -828,7 +806,7 @@ echseInput(engine=engine,
            na.val=wc_res,
            stn=field.station,
            column=4,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -838,7 +816,7 @@ echseInput(engine=engine,
            na.val=wc_res,
            stn=field.station,
            column=4,
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
 
@@ -849,11 +827,9 @@ echseInput(engine=engine,
                        na.rm=T),  # not perfect
            stn=field.station, 
            column=11, 
-           t.seq=time.seq,
+           t.seq=timeseq,
            directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
                             "/"))
-
-# calibration off.
 
 # WRITE MODEL CONTROL FILES ----------------------------------------------------
 
