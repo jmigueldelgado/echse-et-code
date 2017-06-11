@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-26
+# Last Edit: 2017-06-11
 # Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
@@ -10,9 +10,10 @@
 echsePost <- function(engine,  # name of ECHSE engine
                       et.choice,  # etp or eta
                       ma.width,  # width of moving average filter in time units
-                      field.station,  # field station name
+                      fs,  # field station name
                       comp = NA,  # variable for comparison bet. model & obs
-                      wc_etmax  # min soil water content for max eta
+                      wc_res,  # residual soil water content
+                      wc_sat  # saturated soil water content
                       ) {
 
   #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -26,22 +27,35 @@ echsePost <- function(engine,  # name of ECHSE engine
     axis(2, at=atlab, labels=atlab)
   }
 
+  MovAve <- function(station,
+                     column,
+                     period,
+                     na.val,
+                     ma.width
+                     ) {
+    # computes moving average of given data
+
+    var <- as.numeric(get(station)[[column]][period])
+    var[is.na(var)] <- na.val
+    return(runMean(var, n=ma.width))
+  }
+
+
   # RUN ECHSE ------------------------------------------------------------------
 
   system(paste0("cd ~/uni/projects/", engine, "/run; ./run cnf_default"))
 
   # SET AND LOAD ---------------------------------------------------------------
 
-  results <- read.delim(paste0("~/uni/projects/", engine, "/run/out/test1.txt"),
-                        sep="\t")
+  result <- read.delim(paste0("~/uni/projects/", engine, "/run/out/test1.txt"),
+                       sep="\t")
 
   # POSTPROCESSING -------------------------------------------------------------
 
   dstart <- strsplit(tstart, " ")[[1]][1]
   dend <- strsplit(tend, " ")[[1]][1]
-  res.xts <- xts(results[, 2], 
-                 order.by=as.POSIXct(results$end_of_interval, tz="UTC"))
-  res.mean <- mean(results[, 2])
+  res <- xts(result[, 2], order.by=as.POSIXct(result$end_of_interval, tz="UTC"))
+  res.mean <- mean(result[, 2])
 
   # PLOT -----------------------------------------------------------------------
 
@@ -53,56 +67,39 @@ echsePost <- function(engine,  # name of ECHSE engine
     if (engine == "evap_portugal") {
     # Portugal
 
-      fs.list <- get(paste0(field.station, ".list"))
-      ma.width <- ma.width
       period <- seq(as.POSIXct(tstart), as.POSIXct(tend), by="1 hour")
       xl <- c(as.POSIXct(tstart), as.POSIXct(tend))
       # total incoming radiation
-      rad <- as.numeric(meteo.list[[3]][period])
-      rad[is.na(rad)] <- 0
-      rad.ma <- runMean(rad, n=ma.width)
+      rad.ma <- MovAve("tower", 3, period, 0, ma.width)
       # relative humidity
-      hum <- as.numeric(meteo.list[[6]][period])
-      hum[is.na(hum)] <- 0
-      hum.ma <- runMean(hum, n=ma.width)
+      hum.ma <- MovAve("tower", 6, period, 0, ma.width)
       # net radiation
-      radn <- as.numeric(fs.list[[1]][period])
-      radn[is.na(radn)] <- 0
-      radn.ma <- runMean(radn, n=ma.width)
+      radn.ma <- MovAve(fs, 1, period, 0, ma.width)
       # air temperature
-      temp <- as.numeric(fs.list[[2]][period])
-      temp[is.na(temp)] <- mean(as.numeric(HS.list[[2]]))
-      temp.ma <- runMean(temp, n=ma.width)
+      temp.ma <- MovAve(fs, 2, period, mean(as.numeric(get(fs)[[2]])), ma.width)
       # soil heat flux
-      sohe <- as.numeric(fs.list[[3]][period])
-      sohe[is.na(sohe)] <- 0
-      sohe.ma <- runMean(sohe, n=ma.width)
+      sohe.ma <- MovAve(fs, 3, period, 0, ma.width)
       # soil moisture
-      somo <- as.numeric(fs.list[[4]][period])
-      somo[is.na(somo)] <- wc_res
-      somo.ma <- runMean(somo, n=ma.width)
+      somo.ma <- MovAve(fs, 4, period, wc_res, ma.width)
       # wind
-      wind <- as.numeric(fs.list[[11]][period])
-      wind[is.na(wind)] <- 0
-      wind.ma <- runMean(wind, n=ma.width)
+      wind.ma <- MovAve(fs, 11, period, 0, ma.width)
 
-      pdf(paste0("plot_et_compare_portugal_", field.station, "_", dstart, "_",
-                 dend, ".pdf"))
+      # plot
+      pdf(paste0("plot_evap_compare_portugal_", fs, "_", dstart, "_", dend,
+                 ".pdf"))
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
       plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
-           axes=FALSE,
-           main=c(paste0("Engine: ", engine, ", ", field.station), et.choice))
+           axes=FALSE, main=c(paste0("Engine: ", engine, ", ", fs), et.choice))
       AddAxis(rad.ma)
       par(mar=c(0, 5, 0, 2))
-      plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)),
-           axes=FALSE)
+      plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)), axes=FALSE)
       AddAxis(temp.ma)
       plot(period, sohe.ma, xlim=xl, type="l", ylab=(SHF~(W~m^{-2})),
            axes=FALSE)
       AddAxis(sohe.ma)
-      plot(period, somo.ma, xlim=xl, type="l",
-           ylab=expression(S.moist~({}-{})), axes=F)
+      plot(period, somo.ma, xlim=xl, type="l", ylab=expression(S.moist~({}-{})),
+           axes=F)
       AddAxis(somo.ma)
       plot(period, hum.ma, xlim=xl, type="l", ylab=(Rel.hum.~("%")),
            axes=FALSE)
@@ -111,10 +108,10 @@ echsePost <- function(engine,  # name of ECHSE engine
            axes=FALSE)
       AddAxis(wind.ma)
       par(mar=c(4, 5, 0, 2))
-      plot(period, as.numeric(fs.list[[8]][period]), xlim=xl,
-           ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l", col="gray40")
+      plot(period, as.numeric(get(fs)[[8]][period]), xlim=xl, ylim=c(-.1, 2),
+           xlab="", ylab=(ET~(mm)), type="l", col="gray40")
       par(new=T)
-      plot(period[-1], as.numeric(res.xts), xlim=xl, ylim=c(-.1, 2), col=2,
+      plot(period[-1], as.numeric(res), xlim=xl, ylim=c(-.1, 2), col=2,
            xlab="Date", ylab="", type="l")
       legend("topright", c("simulation", "observation"), lty=1,
              col=c(2, "gray40"), bty="n")
@@ -123,31 +120,23 @@ echsePost <- function(engine,  # name of ECHSE engine
     } else {
     # Morocco
 
-      pdf("plot_et_compare_morocco.pdf")
-      ma.width <- ma.width
       period <- seq(as.POSIXct(tstart, tz="UTC"), 
                     as.POSIXct(tend, tz="UTC"), by="1 hour")
       xl <- c(as.POSIXct(tstart, tz="UTC"), as.POSIXct(tend, tz="UTC"))
-      rad <- as.numeric(meteo.list[[2]])  # total incoming radiation
-      rad[is.na(rad)] <- 0
-      rad.ma <- runMean(rad, n=ma.width)
-      hum <- as.numeric(meteo.list[[1]])  # air humidity
-      hum[is.na(hum)] <- 0
-      hum.ma <- runMean(hum, n=ma.width)
-      radn.ma <- rad.ma * .8  # net radiation
-      temp <- as.numeric(meteo.list[[3]])  # air temperature
-      temp[is.na(temp)] <- mean(as.numeric(meteo.list[[4]]))
-      temp.ma <- runMean(temp, n=ma.width)
-      sohe.ma <- NA  # soil heat flux
-      somo.ma <- .9 * wc_sat  # soil moisture
-      wind <- as.numeric(meteo.list[[4]])  # wind
-      wind[is.na(wind)] <- 0
-      wind.ma <- runMean(wind, n=ma.width)
+      rad.ma <- MovAve("meteo", 2, 0, ma.width)
+      hum.ma <- MovAve("meteo", 1, 0, ma.width)
+      radn.ma <- 0.8 * rad.ma
+      temp.ma <- MovAve("meteo", 3, mean(meteo[[3]], na.rm=TRUE), ma.width)
+      sohe.ma <- NA
+      somo.ma <- 0.9 * wc_sat
+      wind.ma <- MovAve("meteo", 4, 0, ma.width)
+
+      pdf("plot_evap_compare_morocco.pdf")
       # calculate daily ET sums for comparison with observations
       # -> maybe faster with apply.daily(..., sum)?
       etsum <- c()
       for (i in 1:365)
-        etsum[i] <- sum(as.numeric(res.xts[format(index(res.xts), "%j") == i,
+        etsum[i] <- sum(as.numeric(res[format(index(res), "%j") == i,
                                            1]))
 
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
@@ -182,19 +171,20 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     if (engine == "evap_portugal") {
     # Portugal
-      pdf(paste0("plot_et_cum_portugal_", field.station, "_", dstart, "_", dend,
-                 ".pdf"))
-      plot(cumsum(res.xts), ylim=c(0, 50), main=paste(engine, "cumulative"),
+      pdf(paste0("plot_evap_cum_portugal_", fs, "_", dstart, "_", dend, ".pdf"))
+      plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
-      if (field.station == "HS") {
+      lines(cumsum(na.exclude(get(fs)[[8]][index(get(fs)[[8]]) >=
+                                           index(res)[[1]])),
+      if (fs == "HS") {
       # Hauptstation
         lines(cumsum(na.exclude(HS.list[[8]][index(HS.list[[8]]) >=
-                                             index(res.xts)[1]])),
+                                             index(res)[1]])),
               col=2)
       } else {
       # Nebenstation A
         lines(cumsum(na.exclude(NSA.list[[8]][index(NSA.list[[8]]) >=
-                                              index(res.xts)[1]])),
+                                              index(res)[1]])),
               col=2)
         legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
       }
@@ -202,10 +192,10 @@ echsePost <- function(engine,  # name of ECHSE engine
     } else {
     # Morocco
       pdf("plot_et_cum_morocco.pdf")
-      plot(cumsum(res.xts), ylim=c(0, 50), main=paste(engine, "cumulative"),
+      plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
       lines(cumsum(na.exclude(eta.day.xts[index(eta.day.xts) >=
-                                          index(res.xts)[1]])), col=2)
+                                          index(res)[1]])), col=2)
       legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
       dev.off()
     }
@@ -225,13 +215,13 @@ echsePost <- function(engine,  # name of ECHSE engine
     }
 
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_glorad_compare_portugal_", field.station, "_", dstart,
+      pdf(paste0("plot_glorad_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
     } else {
       pdf("plot_glorad_compare_morocco.pdf")
     }
 
-    plot(res.xts, ylim=c(0, 500), main=engine, ylab=comp)
+    plot(res, ylim=c(0, 500), main=engine, ylab=comp)
     lines(rad.plot, col=2)
     legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
            lty=c(1, 1))
@@ -239,15 +229,15 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_glorad_cum_portugal_", field.station, "_", dstart, "_",
+      pdf(paste0("plot_glorad_cum_portugal_", fs, "_", dstart, "_",
                  dend, ".pdf"))
     } else {
       pdf("plot_glorad_cum_morocco.pdf")
     }
 
-    plot(cumsum(res.xts), ylim=c(0, 50000), main=paste(engine, "cumulative"),
+    plot(cumsum(res), ylim=c(0, 50000), main=paste(engine, "cumulative"),
          ylab="cumulative radiation (W m2)")
-    lines(cumsum(rad.plot[index(rad.plot) >= index(res.xts)[1]]), col=2)
+    lines(cumsum(rad.plot[index(rad.plot) >= index(res)[1]]), col=2)
     legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
            lty=c(1, 1))
     dev.off()
@@ -257,11 +247,11 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      rnet.plot <- get(paste0(field.station, ".list"))[[1]]
-      pdf(paste0("plot_rad_net_compare_portugal_", field.station, "_", dstart,
+      rnet.plot <- get(paste0(fs, ".list"))[[1]]
+      pdf(paste0("plot_rad_net_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
-#      plot(res.xts, ylim=c(0, 800), main=engine, ylab=comp)
-      plot(res.xts[round(length(res.xts) / 3):round(length(res.xts) / 1.5)],
+#      plot(res, ylim=c(0, 800), main=engine, ylab=comp)
+      plot(res[round(length(res) / 3):round(length(res) / 1.5)],
            ylim=c(0, 800), main=engine, ylab=comp)
       lines(rnet.plot, col=2)
       legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
@@ -271,11 +261,11 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_rad_net_cum_portugal_", field.station, "_", dstart, "_",
+      pdf(paste0("plot_rad_net_cum_portugal_", fs, "_", dstart, "_",
                  dend, ".pdf"))
-      plot(cumsum(res.xts), ylim=c(1, 30000), main=paste(engine, "cumulative"),
+      plot(cumsum(res), ylim=c(1, 30000), main=paste(engine, "cumulative"),
            ylab="cumulative net radiation (Wm2)")
-      lines(cumsum(rnet.plot[index(rnet.plot) >= index(res.xts)[1]]), col=2)
+      lines(cumsum(rnet.plot[index(rnet.plot) >= index(res)[1]]), col=2)
       legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
              lty=c(1, 1))
       dev.off()
@@ -286,11 +276,11 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      sheat.plot <- get(paste0(field.station, ".list"))[[3]]
-      pdf(paste0("plot_soilheat_compare_portugal_", field.station, "_", dstart,
+      sheat.plot <- get(paste0(fs, ".list"))[[3]]
+      pdf(paste0("plot_soilheat_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
 
-      plot(res.xts, ylim=c(-20, 150), main=engine, ylab=comp)
+      plot(res, ylim=c(-20, 150), main=engine, ylab=comp)
       lines(sheat.plot, col=2)
       legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
              lty=c(1, 1))
@@ -299,13 +289,13 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_soilheat_cum_portugal_", field.station, "_", dstart, "_",
+      pdf(paste0("plot_soilheat_cum_portugal_", fs, "_", dstart, "_",
                  dend, ".pdf"))
 
-      plot(cumsum(res.xts), ylim=c(-100, 1800),
+      plot(cumsum(res), ylim=c(-100, 1800),
            main=paste(engine, "cumulative"),
            ylab="cumulative soil heat flux (Wm2)")
-      lines(cumsum(sheat.plot[index(sheat.plot) >= index(res.xts)[1]]), col=2)
+      lines(cumsum(sheat.plot[index(sheat.plot) >= index(res)[1]]), col=2)
       legend("topright", legend=c("simulation", "observation"), col=c(1, 2),
              lty=c(1, 1))
       dev.off()

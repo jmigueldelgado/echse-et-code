@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-09-08
+# Last Edit: 2017-06-11
 # Project: ECHSE Evapotranspiration
 # Function: echseInput
 # Aim: Writing Data Input Files for ECHSE Engines
@@ -46,7 +46,6 @@ echseInput <- function(engine,       # engine name
                              stn == "any",
                              stn,
                              ifelse(stn == "le", "Met", "any"))
-  #var.df
   write.matrix(var.df,
                paste0("~/uni/projects/", engine, "/data/", directory,
                       variable, "_data.dat"), sep="\t")

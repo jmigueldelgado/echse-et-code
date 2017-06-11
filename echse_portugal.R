@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-09
+# Last Edit: 2017-06-11
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -18,6 +18,15 @@
 # Required scripts: echseCtrl.R, echseInput.R, echseParEst.R, echsePost.R,
 #                   echsePre.R
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# Note on parameter estimation:
+# Some parameters are estimated using output from other ECHSE engines.
+# Therefore: Before estimating f_day, f_night,   run output=="rad_net",
+#            before estimating radex_a, radex_b, run output=="radex",
+#            before estimating fcorr_a, fcorr_b, run output=="radex" AND
+#                                                estimate radex_a, radex_b.
+# Once the engines rad_net_portugal and radex_portugal have been run for both
+# field stations (HS, NSA), ET can be calculated properly for both stations.
+#:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 rm(list=ls())
 assign("last.warning", NULL, envir=baseenv())
@@ -29,9 +38,9 @@ Sys.setenv(TZ="UTC")
 # PROGRAM PARAMETERS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # choose output [evap, glorad, gloradmax, rad_net, radex, soilheat]
-output <- "evap"
+output <- "glorad"
 # choose field station [HS, NSA]
-field.station <- "HS"
+fs <- "HS"
 # potential [etp] or actual [eta] evapotranspiration
 et.choice <- "eta"
 # ET model [1=Makk, 11=PM, 12=FAO, 13=SW]
@@ -45,7 +54,7 @@ emismeth <- "Brunt"
 if (output %in% c("gloradmax", "rad_net", "radex")) {
   tstart <- "2014-04-29 22:00:00"
   tend <- "2014-07-01 05:00:00"
-} else if (field.station == "HS") {
+} else if (fs == "HS") {
 # HS
   #tstart <- "2014-04-29 21:00:00"; tend <- "2014-05-04 13:00:00"
   tstart <- "2014-05-14 12:00:00"; tend <- "2014-05-20 19:00:00"
@@ -115,31 +124,31 @@ A <- list(alb=1,                             # albedo
           wc_vol_top=1,                      # water content at topsoil
           wind=1)                            # wind speed
 
-# locations [field.station, tower, any]
-locs <- list(field.station,  # alb
+# locations [fs, tower, any]
+locs <- list(fs,  # alb
              "tower",  # apress
-             field.station,  # cano_height
+             fs,  # cano_height
              "any",  # cloud, not used
              "any",  # doy
-             field.station,  # glorad
+             fs,  # glorad
              "any",  # glorad_max
              "any",  # hour
-             field.station,  # lai
-             field.station,  # rad_long
-             field.station,  # rad_net
+             fs,  # lai
+             fs,  # rad_long
+             fs,  # rad_net
              "any",  # rad_net_soil
              "any",  # radex
              "tower",  # rhum
-             field.station,  # soilheat
+             fs,  # soilheat
              "tower",  # sundur
              "any",  # temp_max
              "any",  # temp_min
-             field.station,  # temper
+             fs,  # temper
              "any",  # totalheat
              "any",  # utc_add
-             field.station,  # wc_vol_root
-             field.station,  # wc_vol_top
-             field.station)  # wind
+             fs,  # wc_vol_root
+             fs,  # wc_vol_top
+             fs)  # wind
 
 
 # PACKAGES & DATA ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -194,7 +203,7 @@ source("echsePre.R")  # preprocessing
 
 TimeSeq <- function(data,  # list of xts objects
                     dt,  # time interval, as character (see ?seq.Date, Details)
-                    at.full  # start at full ... [mins, hours, days, ...]
+                    at.full = NA  # start at full ... [mins, hours, days, ...]
                     ) {
   # creates time sequence of specified constant interval dt
   # covering the whole period of data
@@ -202,11 +211,13 @@ TimeSeq <- function(data,  # list of xts objects
   mi <- min(index(data), na.rm=TRUE)
   ma <- max(index(data), na.rm=TRUE)
 
-  # select index of first occurence of full ... (first full hour, e.g.)
-  ep <- endpoints(data, on="hours") + 1  # endpoint selects last of ...
-  mi.new <- index(data)[ep[2]]  # ep[1] = 1 by default, ep[2] is first full hour
+  if (!is.na(at.full)) {
+    # select index of first occurence of full ... (first full hour, e.g.)
+    ep <- endpoints(data, on=at.full) + 1  # endpoint selects last of ...
+    mi <- index(data)[ep[2]]  # ep[1] = 1 by default, ep[2] is first full ...
+  }
 
-  return(seq(mi.new, ma, dt))
+  return(seq(mi, ma, dt))
 }
 
 RadPrep <- function(data  # xts object (radiation component)
@@ -228,9 +239,8 @@ RadPrep <- function(data  # xts object (radiation component)
 # DATA PREPROCESSING :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # check for correct program parameters
-if (!(field.station %in% c("HS", "NSA")))
-  stop(paste0("No valid field station specified. field.station=",
-              field.station))
+if (!(fs %in% c("HS", "NSA")))
+  stop(paste0("No valid field station specified. fs=", fs))
 if (!(et.choice[1] %in% c("etp", "eta")))
   stop(paste0("No valid ET choice specified. et.choice[1]=", et.choice[1]))
 if (!(et.choice[2] %in% c(1, 11, 12, 13)))
@@ -306,7 +316,7 @@ names(NSA) <- c(head(names(NSA), length(NSA) - 5),
                 "RLdown", "RLup", "RSdown", "RSup", "RLnet")
 
 # create mask of NA intervals
-if (field.station == "HS") {
+if (fs == "HS") {
   na.mask <- sort(unique(do.call(c, lapply(HS[c("R", "T", "G", "theta", "u",
                                                 "RLdown", "RLup", "RSdown",
                                                 "RSup")],
@@ -382,30 +392,10 @@ tower <- xts(tower[2:nrow(tower), -ncol(tower)],
              order.by=as.POSIXct(tower$dati[2:nrow(tower)]), tzone="UTC")
 
 # fill up missing dates
-tower <- merge(xts(order.by=TimeSeq(tower, "30 min", "30 mins")), tower,
-               tzone="UTC")
+tower <- merge(xts(order.by=TimeSeq(tower, "30 min")), tower, tzone="UTC")
 
 # simulation time sequence
 timeseq <- echseTimeSeq(index(tower), tstart, dt)
-
-# convert xts to list objects (simpler access to data later on)
-tower <- as.list(tower)
-
-# fill up missing global radiation data with meteo data
-#na.dates.HS.r <- index(HS.list[[1]][is.na(HS.list[[1]])])
-#na.dates.NSA.r <- index(NSA.list[[1]][is.na(NSA.list[[1]])])
-#HS.list[[1]][na.dates.HS.r] <- ifelse(length(na.dates.HS.r) != 0,
-#                                      tower.list[[3]][na.dates.HS.r], NA)
-#NSA.list[[1]][na.dates.NSA.r] <- ifelse(length(na.dates.NSA.r) != 0,
-#                                        tower.list[[3]][na.dates.NSA.r], NA)
-
-# fill up missing temperature data with meteo data
-#na.dates.HS.t <- index(HS.list[[2]][is.na(HS.list[[2]])])
-#na.dates.NSA.t <- index(NSA.list[[2]][is.na(NSA.list[[2]])])
-#HS.list[[2]][na.dates.HS.t] <- ifelse(length(na.dates.HS.t) != 0,
-#                                      tower.list[[5]][na.dates.HS.t], NA)
-#NSA.list[[2]][na.dates.NSA.t] <- ifelse(length(na.dates.NSA.t) != 0,
-#                                        tower.list[[5]][na.dates.NSA.t], NA)
 
 # derive sunshine hours according to WMO, 2003 (time for which rad > 120 W.m-2)
 if (dt == 86400) {
@@ -413,21 +403,23 @@ if (dt == 86400) {
   # add up to multiple of 48 length
   length(rad) <- length(rad) + 48 - length(rad) %% 48
   # matrix with days (rows) and 48 half hours (columns)
-  rad.mat <- matrix(rad, ncol=48, byrow=T)
+  rad.mat <- matrix(rad, ncol=48, byrow=TRUE)
   sundur <- c()
   days <- 1:nrow(rad.mat)
   for (i in days)
     sundur[i] <- length(rad.mat[i, na.omit(rad.mat[i, ]) > 120]) / 2
-  sundur <- xts(sundur, order.by=seq(index(tower[timeseq])[1],
-                                     tail(index(tower[timeseq]), 1),
-                                     by=paste(dt, "sec")))
+  sundur <- xts(sundur, order.by=TimeSeq(tower[timeseq], paste(dt, "sec")))
 }
+
+# convert xts to list object (simpler access to data later on)
+tower <- as.list(tower)
+
 
 # ENGINE PARAMETERS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # INDIVIDUAL PARAMETERS --------------------------------------------------------
 
-# geographical parameters: Silveira, Santarem, Portugal
+# geographical parameters: Herdade do Machuqueira do Grou, Santarem, Portugal
 lat <- 39.14
 lon <- 8.33
 elev <- 160  # in m
@@ -435,31 +427,32 @@ elev <- 160  # in m
 # soil parameters, soil type: loamy sand (FAO)
 clay <- soildata[1, "clay"]
 silt <- soildata[1, "silt"]
-som <- soildata[1, "som"]
+som <- soildata[1, "som"]  # soil organic matter
 soil_dens <- 1500  # bulk density, estimated from different sources
 soilprop <- data.frame(clay=clay, bulkD=soil_dens / 1000, silt=silt, om=som)
 wc_sat <- ptf.wosten.theta.s(clay=clay, bulkD=soil_dens / 1000, silt=silt,
                              om=som, topSoil=1)
-wc_pwp <- pft.rawls(soilprop, parameters="theta", h=15000)[, "theta"]
+wc_pwp <- pft.rawls(soilprop, parameters="theta", h=15000)[, "theta"]  # wilting
 wc_res <- pft.rawls(soilprop, parameters="theta_r", h=0)[, "theta_r"]
 # field capacity for estimation of wc_etmax
 wc_fc <- pft.rawls(soilprop, parameters="theta", h=316)[, "theta"]
 # wc_etmax is a calibration parameter! This is only a rough estimation:
-wc_etmax <- 0.8 * wc_fc  # used only for Makkink, FAO
-bubble <- pft.rawls(soilprop, parameters="h_b", h=0)[, "h_b"]
-pores_ind <- pft.rawls(soilprop, parameters="lambda", h=0)[, "lambda"]
+wc_etmax <- 0.8 * wc_fc  # used only for Makkink & FAO
+# van Genuchten parameters
+bubble <- pft.rawls(soilprop, parameters="h_b", h=0)[, "h_b"]  # h_b
+pores_ind <- pft.rawls(soilprop, parameters="lambda", h=0)[, "lambda"]  # lambda
 
 # check if measured water content undercuts parameter value
-if (any(HS.list[[4]] < wc_res, na.rm=TRUE))
-  wc_res <- min(na.omit(HS.list[[4]]))
+if (any(HS["theta"] < wc_res, na.rm=TRUE))
+  wc_res <- min(HS.list["theta"], na.rm=TRUE)
 
 # plant parameters
 crop_faoref <- 1
 crop_makk <- 0.8
-glo_half <- 200
+glo_half <- 200  # global radiation at half-max stomatal *conductance*
 par_stressHum <- 0.03
 res_leaf_min <- 50
-wstressmax <- ifelse(field.station == "HS", 13100, 14000)  # Gazdar, 2016
+wstressmax <- ifelse(fs == "HS", 13100, 14000)  # Gazdar, 2016
 wstressmin <- 100
 
 # collect individual parameters
@@ -470,37 +463,7 @@ paramNum <- list(bubble=bubble, crop_faoref=crop_faoref, crop_makk=crop_makk,
                  wc_etmax=wc_etmax, wc_pwp=wc_pwp, wc_res=wc_res,
                  wc_sat=wc_sat, wstressmax=wstressmax, wstressmin=wstressmin)
 
-# write parameter list to latex table
-names.pN <- sapply(names(paramNum),
-                   function(name)
-                     paste0("\\", "verb!", name, "!"))
-comm.pN <- c(paste0("PTF by \\", "citet{rawls85}"),
-             "evaporation of reference crop",
-             paste0("Eq. \\", "eqref{eq:cropmakk}"),
-             "local elevation map", "guessed", "GIS data", "ditto",
-             "guessed", paste0("PTF by \\", "citet{rawls85}"), "guessed",
-             "guessed", "calibration", paste0("PTF by \\", "citet{rawls85}"),
-             paste0("(PTF by \\", "citet{rawls85})"),
-             paste0("PTF by \\", "citet{woesten99}"),
-             "wilting point", "field capacity")
-paramNum.df <- data.frame(Parameter=names.pN,
-                          Value=as.numeric(paramNum),
-                          Unit=c("hPa", "--", "--", "m", "W m$^{-2}$", "°",
-                                 "°", "hPa$^{-1}$", "--", "s m$^{-1}$",
-                                 "kg m$^{-3}$", "--", "--", "--", "--", "hPa",
-                                 "hPa"),
-                          Comment=comm.pN)
-paramNum.tex <- xtable(paramNum.df, align=c("c", "l", "r", "l", "l"),
-                       caption=paste0("Object-specific scalar parameters ",
-                                      "(\\", "textsf{paramNum}), ",
-                                      field.station, " Portugal"),
-                       label=paste0("tab:portugal", field.station, "_paramNum"))
-print.xtable(paramNum.tex,
-             file=paste0("doku/portugal", field.station, "_paramNum.tex"),
-             include.rownames=F, sanitize.text.function=identity,
-             caption.placement="top")
-
-# SHARED PARAMETERS
+# SHARED PARAMETERS ------------------------------------------------------------
 
 choice_gloradmax <- 1
 choice_plantDispl <- 1
@@ -515,9 +478,9 @@ f_day <- .1
 f_night <- .7
 fcorr_a <- 1.35
 fcorr_b <- -.35
-h_humMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
-h_tempMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
-h_windMeas <- 2  # ifelse(field.station=="NSA", 7.98, 2)
+h_humMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
+h_tempMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
+h_windMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
 na_val <- "-9999."
 radex_a <- .25
 radex_b <- .5
@@ -527,7 +490,7 @@ rss_a <- 37.5  # calibration...
 rss_b <- -1.23  # calibration...
 
 path.meteo <- paste0("~/uni/projects/evap_portugal/data/forcing/",
-                     "meteo/05_meteofill/out/", field.station, "/")
+                     "meteo/05_meteofill/out/", fs, "/")
 path.proj <- paste0("~/uni/projects/")
 
 # estimate f_day & f_night from soil heat flux and net radiation
@@ -535,40 +498,36 @@ path.proj <- paste0("~/uni/projects/")
 if (output != "rad_net") {
   f.out <- echseParEst("f",
                        rnetfile=paste0(path.proj, "rad_net_portugal/run/out/",
-                                       field.station, "/test1.txt"),
+                                       fs, "/test1.txt"),
                        sheatfile=paste0(path.meteo, "soilheat_data.dat"),
                        lat=lat, lon=lon, plots=FALSE)
   f_day <- f.out[1]
   f_night <- f.out[2]
 }
 
-#debugonce(echseParEst)
-
 # estimate radex_a, radex_b from global radiation and extraterr. radiation
 # ... Remember to run the radex_* engine first!
 if (output != "radex") {
   radex.out <- echseParEst("radex",
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
-                                         field.station, "/test1.txt"),
+                                         fs, "/test1.txt"),
                            rsdfile="data/portugal/Kdown",
                            r.quantile=0.05, plots=FALSE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }
 
-#debugonce(echseParEst)
-
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, function returns suggested values from Maidment (1993)
 emis.out <- echseParEst("emis",
                         rsdfile="data/portugal/Kdown",
                         rxfile=paste0(path.proj, "radex_portugal/run/out/",
-                                      field.station, "/test1.txt"),
+                                      fs, "/test1.txt"),
                         rldfile="data/portugal/Ldown",
                         rlufile="data/portugal/Lup",
                         tafile=paste0(path.meteo, "temper_data.dat"),
                         hrfile=paste0(path.meteo, "rhum_data.dat"),
-                        field.station=field.station,
+                        fs=fs,
                         radex_a=radex_a,
                         radex_b=radex_b)
 
@@ -580,7 +539,7 @@ fcorr.out <- echseParEst("fcorr",
                          rsdfile="data/portugal/Kdown",
                          hrfile=paste0(path.meteo, "rhum_data.dat"),
                          rxfile=paste0(path.proj, "radex_portugal/run/out/",
-                                       field.station, "/test1.txt"),
+                                       fs, "/test1.txt"),
                          tafile=paste0(path.meteo, "temper_data.dat"),
                          emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
                          radex_b=radex_b, emismeth=emismeth, plots=FALSE)
@@ -609,7 +568,52 @@ sharedParamNum <- list(choice_et=et.choice[2],
                        radex_b=radex_b, res_b=res_b, rough_bare=rough_bare,
                        rss_a=rss_a, rss_b=rss_b)
 
-# write parameter list to latex table
+# EXTERNAL INPUT PARAMETERS (alb, cano_height, lai) ----------------------------
+
+alb <- echseParEst("alb", rsdfile="data/portugal/Kdown",
+                   rsufile="data/portugal/Kup", plots=TRUE)
+cano_height <- 0.20  # ifelse(fs=="NSA", 7.98, 0.20)
+lai <- 0.778  # ifelse(fs == "NSA", 1.397, 0.778)
+
+
+# WRITE LATEX FILES ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+# The following section makes LaTeX files containing parameter tables
+# to be included in the Documentation using \input{filename}.
+# Set first condition to FALSE if not needed.
+
+if (TRUE) {
+# paramNum
+names.pN <- sapply(names(paramNum),
+                   function(name)
+                     paste0("\\", "verb!", name, "!"))
+comm.pN <- c(paste0("PTF by \\", "citet{rawls85}"),
+             "evaporation of reference crop",
+             paste0("Eq. \\", "eqref{eq:cropmakk}"),
+             "local elevation map", "guessed", "GIS data", "ditto",
+             "guessed", paste0("PTF by \\", "citet{rawls85}"), "guessed",
+             "guessed", "calibration", paste0("PTF by \\", "citet{rawls85}"),
+             paste0("(PTF by \\", "citet{rawls85})"),
+             paste0("PTF by \\", "citet{woesten99}"),
+             "wilting point", "field capacity")
+paramNum.df <- data.frame(Parameter=names.pN,
+                          Value=as.numeric(paramNum),
+                          Unit=c("hPa", "--", "--", "m", "W m$^{-2}$", "°",
+                                 "°", "hPa$^{-1}$", "--", "s m$^{-1}$",
+                                 "kg m$^{-3}$", "--", "--", "--", "--", "hPa",
+                                 "hPa"),
+                          Comment=comm.pN)
+paramNum.tex <- xtable(paramNum.df, align=c("c", "l", "r", "l", "l"),
+                       caption=paste0("Object-specific scalar parameters ",
+                                      "(\\", "textsf{paramNum}), ", fs,
+                                      " Portugal"),
+                       label=paste0("tab:portugal", fs, "_paramNum"))
+print.xtable(paramNum.tex,
+             file=paste0("doku/portugal", fs, "_paramNum.tex"),
+             include.rownames=FALSE, sanitize.text.function=identity,
+             caption.placement="top")
+
+# sharedParamNum
 names.sPN <- sapply(names(sharedParamNum),
                     function(name)
                       paste0("\\", "verb!", name, "!"))
@@ -633,21 +637,15 @@ sharedParamNum.tex <- xtable(sharedParamNum.df,
                              caption=paste0("Group-specific ",
                                             "scalar parameters ",
                                             "(\\", "textsf{sharedParamNum}), ",
-                                            field.station, " Portugal"),
-                             label=paste0("tab:portugal", field.station,
+                                            fs, " Portugal"),
+                             label=paste0("tab:portugal", fs,
                                           "_sharedParamNum"))
 print.xtable(sharedParamNum.tex,
-             file=paste0("doku/portugal", field.station, "_sharedParamNum.tex"),
-             include.rownames=F, sanitize.text.function=identity,
+             file=paste0("doku/portugal", fs, "_sharedParamNum.tex"),
+             include.rownames=FALSE, sanitize.text.function=identity,
              caption.placement="top")
 
-# EXTERNAL INPUT PARAMETERS (alb, cano_height, lai)
-
-alb <- echseParEst("alb", rsdfile="data/portugal/Kdown",
-                   rsufile="data/portugal/Kup", plots=TRUE)
-cano_height <- 0.20  # ifelse(field.station=="NSA", 7.98, 0.20)
-lai <- 0.778  # ifelse(field.station == "NSA", 1.397, 0.778)
-
+# inputExt
 inputExt.df <- data.frame(Parameter=c(paste0("\\", "verb!alb!"),
                                       paste0("\\", "verb!cano_height!"),
                                       paste0("\\", "verb!lai!")),
@@ -655,142 +653,127 @@ inputExt.df <- data.frame(Parameter=c(paste0("\\", "verb!alb!"),
                           Unit=c("--", "m", "--"))
 inputExt.tex <- xtable(inputExt.df, align=c("c", "l", "r", "l"),
                        caption=paste0("Time-dependent parameters ",
-                                      "(\\", "textsf{inputExt}), ",
-                                      field.station, " Portugal"),
-                       label=paste0("tab:portugal", field.station,
-                                    "_inputExt"))
+                                      "(\\", "textsf{inputExt}), ", fs,
+                                      " Portugal"),
+                       label=paste0("tab:portugal", fs, "_inputExt"))
 print.xtable(inputExt.tex,
-             file=paste0("doku/portugal", field.station, "_inputExt.tex"),
-             include.rownames=F, sanitize.text.function=identity,
+             file=paste0("doku/portugal", fs, "_inputExt.tex"),
+             include.rownames=FALSE, sanitize.text.function=identity,
              caption.placement="top")
+}
 
-# WRITE DATA INPUT FILES -------------------------------------------------------
 
-# alb (Albedo, -, AVER)
+# WRITE DATA INPUT FILES :::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+path.veg <- paste0("~/uni/projects/", engine, "/data/vegPar_time_series/",
+                   fs, "/")
+
+# alb (Albedo, -, average)
 echseInput(engine=engine, 
            variable="alb",
-           stn=field.station,
+           stn=fs,
            const=alb,
            t.seq=timeseq,
-           directory=paste0("vegPar_time_series/", field.station, "/"))
+           directory=path.veg)
 
-# apress (Air Pressure, hPa, AVER)
+# apress (Air Pressure, hPa, average)
 echseInput(engine=engine, 
            variable="apress", 
            na.val=mean(as.numeric(tower.list[[8]]), na.rm=T), 
            stn="tower", 
            column=8, 
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# cano_height (Canopy Height, m, AVER)
+# cano_height (Canopy Height, m, average)
 echseInput(engine=engine,
            variable="cano_height",
-           stn=field.station,
+           stn=fs,
            const=cano_height,
            t.seq=timeseq,
-           directory=paste0("vegPar_time_series/", field.station, "/"))
+           directory=path.veg)
 
 # doy (Day of Year, d)
 doy.df <- data.frame(end_of_interval=format(timeseq, "%Y-%m-%d %H:%M:%S"),
                      as.numeric(strftime(timeseq, "%j", tz="UTC")))
 names(doy.df)[2] <- "any"
-write.matrix(doy.df, 
-             paste0("~/uni/projects/", engine,
-                    "/data/vegPar_time_series/", field.station,
-                    "/doy_data.dat"), sep="\t")
+write.matrix(doy.df, paste0(path.veg, "doy_data.dat"), sep="\t")
 
-# glorad (Global Radiation, W.m-2, AVER)
+# glorad (Global Radiation, W.m-2, average)
 echseInput(engine=engine,
            variable="glorad",
-           stn=field.station,
+           stn=fs,
            column=14,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
 # hour (Hour of Day, h)
 hour.df <- data.frame(end_of_interval=format(timeseq, "%Y-%m-%d %H:%M:%S"),
                       as.numeric(strftime(timeseq, "%H", tz="UTC")))
 names(hour.df)[2] <- "any"
-write.matrix(hour.df,
-             paste0("~/uni/projects/", engine, 
-                    "/data/vegPar_time_series/", field.station,
-                    "/hour_data.dat"), sep="\t")
+write.matrix(hour.df, paste0(path.veg, "hour_data.dat"), sep="\t")
 
-# lai (Leaf Area Index, -, AVER)
+# lai (Leaf Area Index, -, average)
 echseInput(engine=engine,
            variable="lai",
-           stn=field.station,
+           stn=fs,
            const=lai,
            t.seq=timeseq,
-           directory=paste0("vegPar_time_series/", field.station, "/"))
+           directory=path.veg)
 
-# rad_long (Net Incoming Long-Wave Radiation, W.m-2, AVER)
+# rad_long (Net Incoming Long-Wave Radiation, W.m-2, average)
 echseInput(engine=engine,
            variable="rad_long",
            na.val=0,
-           stn=field.station,
+           stn=fs,
            column=16,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# rad_net (Net Incoming Radiation, W.m-2, AVER)
+# rad_net (Net Incoming Radiation, W.m-2, average)
 echseInput(engine=engine,
            variable="rad_net",
            na.val=0,  # not perfect
-           stn=field.station,
+           stn=fs,
            column=1,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# rhum (Relative Humidity, %, AVER)
+# rhum (Relative Humidity, %, average)
 echseInput(engine=engine,
            variable="rhum",
            na.val=mean(as.numeric(tower.list[[6]]), na.rm=T), 
            stn="tower",
            column=6,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# soilheat (Soil Heat Flux, W.m-2, AVER)
+# soilheat (Soil Heat Flux, W.m-2, average)
 echseInput(engine=engine,
            variable="soilheat",
-           na.val=mean(get(paste0(field.station, ".list"))[[3]],
-                       na.rm=T),  # not perfect
-           stn=field.station,
+           na.val=mean(get(fs)[[3]], na.rm=T),  # not perfect
+           stn=fs,
            column=3,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# sundur (Sunshine Duration, h, CUMU)
+# sundur (Sunshine Duration, h, cumulative)
 if (A$sundur == 1) {
   sundur.df <- data.frame(end_of_interval=format(index(sundur.xts),
                                                  "%Y-%m-%d %H:%M:%S"),
                           sundur.xts)
   names(sundur.df)[2] <- "tower"
-  write.matrix(sundur.df,
-               paste0("~/uni/projects/", engine,
-                      "/data/forcing/meteo/05_meteofill/out/", field.station,
-                      "/sundur_data.dat"),
-               sep="\t")
+  write.matrix(sundur.df, paste0(path.meteo, "sundur_data.dat"), sep="\t")
 }
 
-# temper (Mean Temperature over Time Interval, degC, AVER)
-echseInput(engine=engine, 
-           variable="temper", 
-           na.val=mean(get(paste0(field.station, ".list"))[[2]],
-                       na.rm=T),  # not perfect
-           stn=field.station, 
-           column=2, 
+# temper (Mean Temperature over Time Interval, degC, average)
+echseInput(engine=engine,
+           variable="temper",
+           na.val=mean(get(paste0(fs, ".list"))[[2]], na.rm=T),  # not perfect
+           stn=fs,
+           column=2,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
 # utc_add (Deviation of Time Zone from UTC, h)
 echseInput(engine=engine,
@@ -798,108 +781,99 @@ echseInput(engine=engine,
            stn="any",
            const=0,
            t.seq=timeseq,
-           directory=paste0("vegPar_time_series/", field.station, "/"))
+           directory=path.veg)
 
-# wc_vol_root (Water Content in Root Zone, -, AVER)
+# wc_vol_root (Water Content in Root Zone, -, average)
 echseInput(engine=engine,
            variable="wc_vol_root",
            na.val=wc_res,
-           stn=field.station,
+           stn=fs,
            column=4,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# wc_vol_top (Water Content in Topsoil, -, AVER)
+# wc_vol_top (Water Content in Topsoil, -, average)
 echseInput(engine=engine,
            variable="wc_vol_top",
            na.val=wc_res,
-           stn=field.station,
+           stn=fs,
            column=4,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# wind (Wind Speed, m.s-1, AVER)
-echseInput(engine=engine, 
-           variable="wind", 
-           na.val=mean(get(paste0(field.station, ".list"))[[11]],
-                       na.rm=T),  # not perfect
-           stn=field.station, 
-           column=11, 
+# wind (Wind Speed, m.s-1, average)
+echseInput(engine=engine,
+           variable="wind",
+           na.val=mean(get(paste0(fs, ".list"))[[11]], na.rm=T),  # not perfect
+           stn=fs,
+           column=11,
            t.seq=timeseq,
-           directory=paste0("forcing/meteo/05_meteofill/out/", field.station,
-                            "/"))
+           directory=path.meteo)
 
-# WRITE MODEL CONTROL FILES ----------------------------------------------------
+
+# WRITE MODEL CONTROL FILES ::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 echseCtrl_cnf(engine, tstart, tend, dt)
 echseCtrl_out(engine, output, et.choice[1])
 echseCtrl_loc(engine, selection$DAT, A, locs)
-echseCtrl_fil(engine, field.station, selection$DAT, A, past=T)
+echseCtrl_fil(engine, fs, selection$DAT, A, past=TRUE)
 echseCtrl_shpar(engine, sharedParamNum, selection$SHP)
 echseCtrl_par(engine, paramNum, selection$PAR)
 echseCtrl_ini(engine, selection$STV, selection$I)
 
-# CALL MODEL RUN & POSTPROCESSING ----------------------------------------------
 
-#debugonce(echsePost)
-echsePost(engine, et.choice, ma.width=1, field.station=field.station, 
-          comp=output, wc_etmax=wc_etmax)
+# CALL MODEL RUN & POSTPROCESSING ::::::::::::::::::::::::::::::::::::::::::::::
 
-# SHOW RESULTS -----------------------------------------------------------------
+echsePost(engine, et.choice, ma.width=1, fs=fs, comp=output, wc_res=wc_res,
+          wc_sat=wc_sat)
+
+
+# SHOW RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 Sys.sleep(1.0)
 
 dstart <- strsplit(tstart, " ")[[1]][1]
 dend <- strsplit(tend, " ")[[1]][1]
 
-if (output == "evap") {
-  comp.file <- paste0("plot_et_compare_portugal_", field.station, "_", dstart,
-                      "_", dend, ".pdf")
-  cum.file <- paste0("plot_et_cum_portugal_", field.station, "_", dstart, "_",
-                     dend, ".pdf")
-} else if (output %in% c("glorad", "rad_net", "soilheat")) {
-  comp.file <- paste0("plot_", output, "_compare_portugal_", field.station, "_",
+if (output %in% c("evap", "glorad", "rad_net", "soilheat")) {
+  comp.file <- paste0("plot_", output, "_compare_portugal_", fs, "_",
                       dstart, "_", dend, ".pdf")
-  cum.file <- paste0("plot_", output, "_cum_portugal_", field.station, "_",
+  cum.file <- paste0("plot_", output, "_cum_portugal_", fs, "_",
                      dstart, "_", dend, ".pdf")
 }
 
+# open pdf for comparison between simulation and observation
 if (is.null(warnings())) {
-  if (output == "evap") {
-    system(paste0("cd ~/boxup/whk_echse; evince ", comp.file, " &"))
-  } else if (output %in% c("glorad", "rad_net", "soilheat")) {
-    system(paste0("cd ~/boxup/whk_echse; evince ", comp.file, " &"))
-  }
+  system(paste0("cd ~/boxup/whk_echse; evince ", comp.file, " &"))
 }
 
-# SAVE RESULTS -----------------------------------------------------------------
+
+# SAVE RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 if (is.null(warnings())) {
   if (output == "evap") {
-    # copy plot for comparison to archive directory
-    system(paste0("cd ~/boxup/whk_echse; cp ", comp.file,
+    # move plot for comparison to archive directory
+    system(paste0("cd ~/boxup/whk_echse; mv ", comp.file,
                   " results/evap_portugal/", et.choice[1], "_", etmeth, "/"))
-    # copy cumulative plot to archive dir
-    system(paste0("cd ~/boxup/whk_echse; cp ", cum.file,
+    # move cumulative plot to archive dir
+    system(paste0("cd ~/boxup/whk_echse; mv ", cum.file,
                   " results/evap_portugal/", et.choice[1], "_", etmeth, "/"))
     # copy simulation results to archive dir
     system(paste0("cd ~/uni/projects/evap_portugal/run/out; cp test1.txt ",
-                  field.station, "/test1.txt"))
+                  fs, "/test1.txt"))
   } else if (output %in% c("glorad", "rad_net", "soilheat")) {
-    # copy plot for comparison to archive directory
-    system(paste0("cd ~/boxup/whk_echse; cp ", comp.file, " results/", engine,
+    # move plot for comparison to archive directory
+    system(paste0("cd ~/boxup/whk_echse; mv ", comp.file, " results/", engine,
                   "/"))
-    # copy cumulative plot to archive dir
-    system(paste0("cd ~/boxup/whk_echse; cp ", cum.file, " results/", engine,
+    # move cumulative plot to archive dir
+    system(paste0("cd ~/boxup/whk_echse; mv ", cum.file, " results/", engine,
                   "/"))
     # copy simulation results to archive dir
     system(paste0("cd ~/uni/projects/", engine, "/run/out; cp test1.txt ",
-                  field.station, "/test1.txt"))
+                  fs, "/test1.txt"))
   } else if (output %in% c("gloradmax", "radex")) {
     # copy simulation results to archive dir
     system(paste0("cd ~/uni/projects/", engine, "/run/out; cp test1.txt ",
-                  field.station, "/test1.txt"))
+                  fs, "/test1.txt"))
   }
 }

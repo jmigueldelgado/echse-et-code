@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-05-26
+# Last Edit: 2017-06-11
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -20,7 +20,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
                         sheatfile = NA,  # file with soil heat flux data*
                         tafile = NA,  # file with mean air temperature data*
                                       # *Supply complete file path!
-                        field.station = NA,  # [HS, NSA]
+                        fs = NA,  # field station [HS, NSA]
                         emis_a = NA,  # net emissivity coefficient
                         emis_b = NA,  # ditto
                         lat = 0,  # latitude for calculating sunrise/-set
@@ -40,7 +40,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   #                rsd = Downward Short-wave Radiation, ...
   #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-  # FUNCTIONS ------------------------------------------------------------------
+
+  # FUNCTIONS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   EmisBrunt <- function(emis_a,  # emissivity parameter a (intersect)
                         emis_b,  # emissivity parameter b (slope)
@@ -114,7 +115,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
   }
 
 
-  # PARAMETER ESTIMATION -------------------------------------------------------
+  # PARAMETER ESTIMATION :::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   if (length(grep("alb", parname)) != 0) {
   # estimation of albedo
@@ -361,7 +362,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     est.dat$emis <- with(est.dat[ix.rsdmax],
                          - (rld - rlu) / (sig * (ta + 273.15) ^ 4))
     # (4) plot observation-based emissivity against models
-    pdf(paste0("doku/plot_emis_both_", field.station, ".pdf"), height=5, width=9)
+    pdf(paste0("doku/plot_emis_both_", fs, ".pdf"), height=5, width=9)
     par(mfrow=c(1, 2))
     with(est.dat[ix.rsdmax & !ix.noon],
          plot(as.numeric(EmisBrunt(0.34, -0.14,

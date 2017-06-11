@@ -1,9 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-10-24
+# Last Edit: 2017-06-11
 # Project: ECHSE Evapotranspiration
 # Program: echse_morocco
 # Aim: Data Preprocessing and Main Executing Script for ET in Morocco
+# TODO(2017-06-11): check & update everything after finishing evap_portugal.R
 ################################################################################
 
 rm(list=ls())
