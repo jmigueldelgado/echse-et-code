@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-11
+# Last Edit: 2017-06-12
 # Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
@@ -11,11 +11,14 @@ echsePost <- function(engine,  # name of ECHSE engine
                       et.choice,  # etp or eta
                       ma.width,  # width of moving average filter in time units
                       fs,  # field station name
-                      comp = NA,  # variable for comparison bet. model & obs
+                      comp = NA,  # variable for comparison btw. model & obs
                       wc_res,  # residual soil water content
                       wc_sat  # saturated soil water content
                       ) {
 
+  #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  # This function runs the models in ECHSE and does post-processing
+  # of the results (mainly plots).
   #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
   # requires the TTR package!
   #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -41,23 +44,26 @@ echsePost <- function(engine,  # name of ECHSE engine
   }
 
 
-  # RUN ECHSE ------------------------------------------------------------------
+  # RUN ECHSE ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   system(paste0("cd ~/uni/projects/", engine, "/run; ./run cnf_default"))
 
-  # SET AND LOAD ---------------------------------------------------------------
+
+  # READ RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   result <- read.delim(paste0("~/uni/projects/", engine, "/run/out/test1.txt"),
                        sep="\t")
 
-  # POSTPROCESSING -------------------------------------------------------------
+
+  # POSTPROCESSING :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   dstart <- strsplit(tstart, " ")[[1]][1]
   dend <- strsplit(tend, " ")[[1]][1]
   res <- xts(result[, 2], order.by=as.POSIXct(result$end_of_interval, tz="UTC"))
   res.mean <- mean(result[, 2])
 
-  # PLOT -----------------------------------------------------------------------
+
+  # PLOT :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
   if (comp == "evap") {
   # evapotranspiration
@@ -67,11 +73,12 @@ echsePost <- function(engine,  # name of ECHSE engine
     if (engine == "evap_portugal") {
     # Portugal
 
-      period <- seq(as.POSIXct(tstart), as.POSIXct(tend), by="1 hour")
+      period <- seq(as.POSIXct(tstart, tz="UTC"), as.POSIXct(tend, tz="UTC"),
+                    by="1 hour")
       xl <- c(as.POSIXct(tstart), as.POSIXct(tend))
       # total incoming radiation
       rad.ma <- MovAve("tower", 3, period, 0, ma.width)
-      # relative humidity
+      # relative air humidity
       hum.ma <- MovAve("tower", 6, period, 0, ma.width)
       # net radiation
       radn.ma <- MovAve(fs, 1, period, 0, ma.width)
@@ -79,9 +86,9 @@ echsePost <- function(engine,  # name of ECHSE engine
       temp.ma <- MovAve(fs, 2, period, mean(as.numeric(get(fs)[[2]])), ma.width)
       # soil heat flux
       sohe.ma <- MovAve(fs, 3, period, 0, ma.width)
-      # soil moisture
+      # soil moisture content
       somo.ma <- MovAve(fs, 4, period, wc_res, ma.width)
-      # wind
+      # wind speed
       wind.ma <- MovAve(fs, 11, period, 0, ma.width)
 
       # plot
@@ -109,62 +116,70 @@ echsePost <- function(engine,  # name of ECHSE engine
       AddAxis(wind.ma)
       par(mar=c(4, 5, 0, 2))
       plot(period, as.numeric(get(fs)[[8]][period]), xlim=xl, ylim=c(-.1, 2),
-           xlab="", ylab=(ET~(mm)), type="l", col="gray40")
+           xlab="", ylab=(ET~(mm)), type="l")
       par(new=T)
       plot(period[-1], as.numeric(res), xlim=xl, ylim=c(-.1, 2), col=2,
            xlab="Date", ylab="", type="l")
       legend("topright", c("simulation", "observation"), lty=1,
-             col=c(2, "gray40"), bty="n")
+             col=c(2, 1), bty="n")
       dev.off()
 
     } else {
     # Morocco
 
-      period <- seq(as.POSIXct(tstart, tz="UTC"), 
-                    as.POSIXct(tend, tz="UTC"), by="1 hour")
+      period <- seq(as.POSIXct(tstart, tz="UTC"), as.POSIXct(tend, tz="UTC"),
+                    by="1 hour")
       xl <- c(as.POSIXct(tstart, tz="UTC"), as.POSIXct(tend, tz="UTC"))
-      rad.ma <- MovAve("meteo", 2, 0, ma.width)
-      hum.ma <- MovAve("meteo", 1, 0, ma.width)
+      # total incoming radiation
+      rad.ma <- MovAve("meteo", 2, period, 0, ma.width)
+      # relative air humidity
+      hum.ma <- MovAve("meteo", 1, period, 0, ma.width)
+      # net radiation
       radn.ma <- 0.8 * rad.ma
-      temp.ma <- MovAve("meteo", 3, mean(meteo[[3]], na.rm=TRUE), ma.width)
+      # air temperature
+      temp.ma <- MovAve("meteo", 3, period, mean(meteo[[3]], na.rm=TRUE),
+                        ma.width)
+      # soil heat flux
       sohe.ma <- NA
+      # soil moisture content
       somo.ma <- 0.9 * wc_sat
-      wind.ma <- MovAve("meteo", 4, 0, ma.width)
-
-      pdf("plot_evap_compare_morocco.pdf")
+      # wind speed
+      wind.ma <- MovAve("meteo", 4, period, 0, ma.width)
       # calculate daily ET sums for comparison with observations
-      # -> maybe faster with apply.daily(..., sum)?
-      etsum <- c()
-      for (i in 1:365)
-        etsum[i] <- sum(as.numeric(res[format(index(res), "%j") == i,
-                                           1]))
+      etsum <- apply.daily(res, sum)
 
+      # plot
+      pdf("plot_evap_compare_morocco.pdf")
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
-      plot(index(meteo.list[[1]]), rad.ma, xlim=xl, type="l", xlab="",
-           ylab=(Rad~(W~m^{-2})), xaxt="n", main=c(engine, et.choice))
-      #lines(index(meteo.list[[1]]), radn.ma, xlim=xl, type="l", col=2)
-      #legend("topright", c("global rad.", "net rad."), col=c(1, 2))
+      plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
+           axes=FALSE, main=c(paste0("Engine: ", engine, ", ", fs), et.choice))
+      AddAxis(rad.ma)
       par(mar=c(0, 5, 0, 2))
-      plot(index(meteo.list[[1]]), temp.ma, xlim=xl, type="l", 
-           ylab=(Temp~({}^o*C)), xaxt="n")
-      plot(index(meteo.list[[1]]), rep(sohe.ma, length(index(meteo.list[[1]]))), 
-           xlim=xl, ylim=c(0, 0), type="l", ylab=(SHF~(W~m^{-2})), xaxt="n")
-      plot(index(meteo.list[[1]]), rep(somo.ma, length(index(meteo.list[[1]]))),
-           xlim=xl, type="l", ylab=expression(S.moist~({}-{})), xaxt="n")
-      plot(index(meteo.list[[1]]), hum.ma, xlim=xl, type="l",
-           ylab=(Rel.hum.~("%")), xaxt="n")
-      plot(index(meteo.list[[1]]), wind.ma, xlim=xl, type="l",
-           ylab=(Wind~(m~s^{-1})), xaxt="n")
+      plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)), axes=FALSE)
+      AddAxis(temp.ma)
+      plot(period, sohe.ma, xlim=xl, type="l", ylab=(SHF~(W~m^{-2})),
+           axes=FALSE)
+      AddAxis(sohe.ma)
+      plot(period, somo.ma, xlim=xl, type="l", ylab=expression(S.moist~({}-{})),
+           axes=F)
+      AddAxis(somo.ma)
+      plot(period, hum.ma, xlim=xl, type="l", ylab=(Rel.hum.~("%")),
+           axes=FALSE)
+      AddAxis(hum.ma)
+      plot(period, wind.ma, xlim=xl, type="l", ylab=(Wind~(m~s^{-1})),
+           axes=FALSE)
+      AddAxis(wind.ma)
       par(mar=c(4, 5, 0, 2))
-      plot(index(eta.day.xts), as.numeric(eta.day.xts), xlim=xl,
-           ylim=c(-1, max(c(as.numeric(eta.day.xts), etsum))), xlab="",
-           ylab=(ET~(mm)), type="l", col=2)
+      plot(index(eta.day), as.numeric(eta.day), xlim=xl,
+           ylim=c(-.1, max(c(as.numeric(eta.day), etsum))), xlab="Date",
+           ylab=(ET~(mm)), type="l")
       lines(seq(as.POSIXct("2013-01-01"), as.POSIXct("2013-12-31"), by="day"),
-            etsum)
-      legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2),
-             bty="n")
+            etsum, col=2)
+      legend("topright", c("simulation", "observation"), lty=1,
+             col=c(2, 1), bty="n")
       dev.off()
+
     }
 
     # CUMULATIVE PLOT
@@ -175,7 +190,8 @@ echsePost <- function(engine,  # name of ECHSE engine
       plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
       lines(cumsum(na.exclude(get(fs)[[8]][index(get(fs)[[8]]) >=
-                                           index(res)[[1]])),
+                                           index(res)[1]])),
+            col=2)
       if (fs == "HS") {
       # Hauptstation
         lines(cumsum(na.exclude(HS.list[[8]][index(HS.list[[8]]) >=
@@ -205,11 +221,13 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      rad.plot <- apply.daily(meteo.list[[3]], mean)
+    # Portugal
+      rad.plot <- apply.daily(tower["rsd"], mean)
       index(rad.plot) <- as.POSIXlt(index(rad.plot))
       index(rad.plot)$hour <- "00"
     } else {
-      rad.plot <- apply.daily(meteo.list[[2]], mean)
+    # Morocco
+      rad.plot <- apply.daily(meteo[[2]], mean)
       index(rad.plot) <- as.POSIXlt(index(rad.plot))
       index(rad.plot)$hour <- "00"
     }

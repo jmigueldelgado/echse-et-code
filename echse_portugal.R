@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-11
+# Last Edit: 2017-06-12
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -174,7 +174,8 @@ library(xts)  # time series handling
 HS <- get(load("data/portugal/meteo_HS.Rdata"))
 NSA <- get(load("data/portugal/meteo_NSA.Rdata"))
 tower <- na.omit(read.csv("data/portugal/meteo_tower_2014part.csv",
-                          header=TRUE))  # eddy tower
+                          header=TRUE))  # eddy tower, meteo data
+eddy <- get(load("data/portugal/COR_ZM.RDA"))  # eddy tower, eddy data
 rld <- readRDS("data/portugal/Ldown")    # field station
 rlu <- readRDS("data/portugal/Lup")      # ditto
 rsd <- readRDS("data/portugal/Kdown")    # ditto
@@ -363,8 +364,7 @@ if (!wc.new) {
                      index(wc.NSA) <= datrg.NSA[2]]
 }
 
-
-# TOWER DATA -------------------------------------------------------------------
+# TOWER DATA: METEO ------------------------------------------------------------
 
 tower$date <- NA  # date (Y-m-d)
 class(tower$date) <- "Date"
@@ -414,6 +414,17 @@ if (dt == 86400) {
 # convert xts to list object (simpler access to data later on)
 tower <- as.list(tower)
 
+# TOWER DATA: EDDY -------------------------------------------------------------
+
+eddy <- xts(eddy[, -(1:3)], order.by=as.POSIXct(paste(eddy$date, eddy$time)))
+eddy <- eddy[!duplicated(index(eddy))]
+# take latent heat flux with Foken/Mauder quality flag 0, 1 (= quality ok)
+eddy.le <- eddy$LE[eddy$qc_LE == 0 | eddy$qc_LE == 1]
+eddy.le <- eddy.le[!duplicated(index(eddy.le))]
+# fill up missing dates
+eddy <- merge(xts(order.by=TimeSeq(eddy, "30 min", "hours")), eddy)
+eddy.le <- merge(xts(order.by=TimeSeq(eddy, "30 min", "hours")), eddy.le)
+
 
 # ENGINE PARAMETERS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -443,8 +454,8 @@ bubble <- pft.rawls(soilprop, parameters="h_b", h=0)[, "h_b"]  # h_b
 pores_ind <- pft.rawls(soilprop, parameters="lambda", h=0)[, "lambda"]  # lambda
 
 # check if measured water content undercuts parameter value
-if (any(HS["theta"] < wc_res, na.rm=TRUE))
-  wc_res <- min(HS.list["theta"], na.rm=TRUE)
+if (any(get(fs)[["theta"]] < wc_res, na.rm=TRUE))
+  wc_res <- min(get(fs)[["theta"]], na.rm=TRUE)
 
 # plant parameters
 crop_faoref <- 1
@@ -469,23 +480,23 @@ choice_gloradmax <- 1
 choice_plantDispl <- 1
 choice_rcs <- 1
 choice_roughLen <- 2
-drag_coef <- .07
+drag_coef <- 0.07
 eddy_decay <- 2.5
-emis_a <- .34
-emis_b <- -.14
-ext <- .4
-f_day <- .1
-f_night <- .7
+emis_a <- 0.34
+emis_b <- -0.14
+ext <- 0.4
+f_day <- 0.1
+f_night <- 0.7
 fcorr_a <- 1.35
-fcorr_b <- -.35
+fcorr_b <- -0.35
 h_humMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
 h_tempMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
 h_windMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
 na_val <- "-9999."
-radex_a <- .25
-radex_b <- .5
+radex_a <- 0.25
+radex_b <- 0.5
 res_b <- 25
-rough_bare <- .01
+rough_bare <- 0.01
 rss_a <- 37.5  # calibration...
 rss_b <- -1.23  # calibration...
 
@@ -578,7 +589,7 @@ lai <- 0.778  # ifelse(fs == "NSA", 1.397, 0.778)
 
 # WRITE LATEX FILES ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-# The following section makes LaTeX files containing parameter tables
+# The following section creates LaTeX files containing parameter tables
 # to be included in the Documentation using \input{filename}.
 # Set first condition to FALSE if not needed.
 

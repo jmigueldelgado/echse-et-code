@@ -21,9 +21,9 @@ echseInput <- function(engine,       # engine name
   if (is.na(const)) {
   # recorded value
     if (stn == "Met") {
-      var.df <- data.frame(end_of_interval=index(meteo.list[[column]][t.seq]),
-                           meteo.list[[column]][t.seq],
-                           row.names=seq(nrow(meteo.list[[column]][t.seq])))
+      var.df <- data.frame(end_of_interval=index(tower[[column]][t.seq]),
+                           tower[[column]][t.seq],
+                           row.names=seq(nrow(tower[[column]][t.seq])))
     } else if (stn == "HS" || stn == "any") {
       var.df <- data.frame(end_of_interval=index(HS.list[[column]][t.seq]), 
                            HS.list[[column]][t.seq],
@@ -35,9 +35,9 @@ echseInput <- function(engine,       # engine name
     }
   } else {
   # constant value
-    var.df <- data.frame(end_of_interval=index(meteo.list[[1]][t.seq]),
+    var.df <- data.frame(end_of_interval=index(tower[[1]][t.seq]),
                          const,
-                         row.names=seq(nrow(meteo.list[[1]][t.seq])))
+                         row.names=seq(nrow(tower[[1]][t.seq])))
   }
 
   if (length(which(is.na(var.df[, 2]))) != 0)
@@ -47,7 +47,6 @@ echseInput <- function(engine,       # engine name
                              stn,
                              ifelse(stn == "le", "Met", "any"))
   write.matrix(var.df,
-               paste0("~/uni/projects/", engine, "/data/", directory,
-                      variable, "_data.dat"), sep="\t")
+               paste0(directory, variable, "_data.dat"), sep="\t")
 
 }

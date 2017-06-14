@@ -135,8 +135,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # diagnostic plot
     if (plots) {
       pdf("doku/plot_alb.pdf", width=6, height=4)
-      plot(apply.daily(alb.series[alb.series < 1], mean), ylab=(mu), main="",
-           type="p", pch=20)
+      plot(apply.daily(alb.series[alb.series < 1], mean),
+           ylab=expression(mu), main="", type="p", pch=20)
       dev.off()
     }
 
@@ -368,8 +368,8 @@ echseParEst <- function(parname,  # name of parameter group to estimate
          plot(as.numeric(EmisBrunt(0.34, -0.14,
                                    est.dat[ix.rsdmax & !ix.noon]$vap / 10)),
               emis, xlim=c(0, 0.25), ylim=c(0, 0.25),
-              xlab=(epsilon*", predicted by Brunt model"),
-              ylab=(epsilon*", derived from observations")))
+              xlab=expression(epsilon*", predicted by Brunt model"),
+              ylab=expression(epsilon*", derived from observations")))
     with(est.dat[ix.noon],
          points(as.numeric(EmisBrunt(0.34, -0.14,
                                      est.dat[ix.noon]$vap / 10)),
@@ -379,7 +379,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     with(est.dat[ix.rsdmax & !ix.noon],
          plot(as.numeric(EmisIdso(est.dat[ix.rsdmax & !ix.noon]$ta)),
               emis, xlim=c(0, 0.25), ylim=c(0, 0.25), ylab="",
-              xlab=(epsilon*", predicted by Idso-Jackson model")))
+              xlab=expression(epsilon*", predicted by Idso-Jackson model")))
     with(est.dat[ix.noon],
          points(as.numeric(EmisIdso(est.dat[ix.noon]$ta)),
                 emis, pch=20))
