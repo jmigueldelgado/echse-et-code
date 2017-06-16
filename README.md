@@ -1,4 +1,4 @@
-### Modeling Evapotranspiration in ECHSE
+## Modeling Evapotranspiration in ECHSE
 
 Using the Eco-Hydrological Simulation Environment (ECHSE) for modeling evapotranspiration fluxes in semi-arid regions.
 **Code**, **data**, and **miscellanea**.
@@ -6,7 +6,7 @@ Using the Eco-Hydrological Simulation Environment (ECHSE) for modeling evapotran
 Original repositories of ECHSE [here](https://github.com/echse).
 Repository of ECHSE with added evapotranspiration methods: [code](https://github.com/tpilz/echse_engines), [documentation](https://github.com/tpilz/echse_doc).
 
-#### Shortened project tree:
+### Shortened project tree:
 
 * [data/](./data/)
   * [morocco/](./data/morocco/)
@@ -49,21 +49,25 @@ Repository of ECHSE with added evapotranspiration methods: [code](https://github
   * ...
 * [decision_tree_maidment.pdf](./decision_tree_maidment.pdf) &mdash; _Selection & Computation Sequence for Estimating Energy, from Maidment (1993)._
 
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-#### Main procedure of running ECHSE through R scripts (Portugal, simplified):
+### Main procedure of running ECHSE through R scripts (Portugal, simplified):
+
+A complete model run including pre-/post-processing is done by the execution of the following script.
 
 [__echse_portugal.R__](./R/echse_portugal.R):
+* choose ECHSE engine, ET method, simulation period, time step, etc.
+* load data
+* pre-process data &lArr; [__echsePre.R__](./R/echsePre.R)
+* set known engine parameters &lArr; [__echseAlbSin.R__](./R/echseAlbSin.R)
+* estimate unknown engine parameters &lArr; [__echseParEst.R__](./R/echseParEst.R)
+* write data input files &lArr; [__echseInput.R__](./R/echseInput.R)
+* write control files &lArr; [__echseCtrl.R__](./R/echseCtrl.R)
+* run model & post-process results &lArr; [__echsePost.R__](./R/echsePost.R)
+* show & save results
 
--- choose ECHSE engine, $et$ method, simulation period, time step, etc.
--- load data
--- pre-process data &larr; [__echsePre.R__](./R/echsePre.R)
--- set known engine parameters &larr; [__echseAlbSin.R](./R/echseAlbSin.R)
--- estimate unknown engine parameters &larr; [__echseParEst.R__](./R/echseParEst.R)
--- write data input files &larr; [__echseInput.R__](./R/echseInput.R)
--- write control files &larr; [__echseCtrl.R__](./R/echseCtrl.R)
--- run model & post-process results &larr; [__echsePost.R__](./R/echsePost.R)
--- show & save results
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-#### Remark:
+### Remark:
 
 [echse_calibration.R](./R/echse_calibration.R), [echse_check_functions.R](./R/echse_check_functions.R), [echseDepend.R](./R/echseDepend.R), and [tms.R](./R/tms.R) are stand-alone scripts for additional purposes.
