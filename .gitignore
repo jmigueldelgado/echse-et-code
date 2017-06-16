@@ -6,7 +6,6 @@ micrometeo_towers_gis/
 R-script*
 .Rproj.user
 .Rhistory
-albedoSin.R
 *.ods
 *.odt
 *.odp
