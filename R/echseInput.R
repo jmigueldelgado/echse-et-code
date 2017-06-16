@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-11
+# Last Edit: 2017-06-16
 # Project: ECHSE Evapotranspiration
 # Function: echseInput
 # Aim: Writing Data Input Files for ECHSE Engines
@@ -20,18 +20,18 @@ echseInput <- function(engine,       # engine name
 
   if (is.na(const)) {
   # recorded value
-    if (stn == "Met") {
+    if (stn == "tower") {
       var.df <- data.frame(end_of_interval=index(tower[[column]][t.seq]),
                            tower[[column]][t.seq],
                            row.names=seq(nrow(tower[[column]][t.seq])))
     } else if (stn == "HS" || stn == "any") {
-      var.df <- data.frame(end_of_interval=index(HS.list[[column]][t.seq]), 
-                           HS.list[[column]][t.seq],
-                           row.names=seq(nrow(HS.list[[column]][t.seq])))
+      var.df <- data.frame(end_of_interval=index(HS[[column]][t.seq]), 
+                           HS[[column]][t.seq],
+                           row.names=seq(nrow(HS[[column]][t.seq])))
     } else if (stn == "NSA") {
-      var.df <- data.frame(end_of_interval=index(NSA.list[[column]][t.seq]),
-                           NSA.list[[column]][t.seq],
-                           row.names=seq(nrow(NSA.list[[column]][t.seq])))
+      var.df <- data.frame(end_of_interval=index(NSA[[column]][t.seq]),
+                           NSA[[column]][t.seq],
+                           row.names=seq(nrow(NSA[[column]][t.seq])))
     }
   } else {
   # constant value
@@ -42,10 +42,10 @@ echseInput <- function(engine,       # engine name
 
   if (length(which(is.na(var.df[, 2]))) != 0)
     var.df[which(is.na(var.df[, 2])), 2] <- na.val
-  names(var.df)[2] <- ifelse(stn == "Met" || stn == "HS" || stn == "NSA" ||
+  names(var.df)[2] <- ifelse(stn == "tower" || stn == "HS" || stn == "NSA" ||
                              stn == "any",
                              stn,
-                             ifelse(stn == "le", "Met", "any"))
+                             ifelse(stn == "le", "tower", "any"))
   write.matrix(var.df,
                paste0(directory, variable, "_data.dat"), sep="\t")
 

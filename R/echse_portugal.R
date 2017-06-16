@@ -171,24 +171,23 @@ library(xts)  # time series handling
 
 # load data
 # meteo data
-HS <- get(load("data/portugal/meteo_HS.Rdata"))
-NSA <- get(load("data/portugal/meteo_NSA.Rdata"))
-tower <- na.omit(read.csv("data/portugal/meteo_tower_2014part.csv",
-                          header=TRUE))  # eddy tower, meteo data
-eddy <- get(load("data/portugal/COR_ZM.RDA"))  # eddy tower, eddy data
-rld <- readRDS("data/portugal/Ldown")    # field station
-rlu <- readRDS("data/portugal/Lup")      # ditto
-rsd <- readRDS("data/portugal/Kdown")    # ditto
-rsu <- readRDS("data/portugal/Kup")      # ditto
+HS <- get(load("../data/portugal/meteo_HS.Rdata"))
+NSA <- get(load("../data/portugal/meteo_NSA.Rdata"))
+tower <- get(load("../data/portugal/COR_ZM.RDA"))  # eddy tower
+rld <- readRDS("../data/portugal/Ldown")    # field station
+rlu <- readRDS("../data/portugal/Lup")      # ditto
+rsd <- readRDS("../data/portugal/Kdown")    # ditto
+rsu <- readRDS("../data/portugal/Kup")      # ditto
 index(rld) <- index(rld) + 3600
 index(rlu) <- index(rlu) + 3600
 index(rsd) <- index(rsd) + 3600
 index(rsu) <- index(rsu) + 3600
 # soil data at field stations
-soildata <- read.table("data/portugal/soildata.dat", header=T)
+soildata <- read.table("../data/portugal/soildata.dat", header=T)
 # water content at field stations
-wc.HS <- read.table("data/portugal/soil_moisture_HS.txt", header=T, sep="\t")
-wc.NSA <- read.table("data/portugal/soil_moisture_NSA.txt", header=T, sep="\t")
+wc.HS <- read.table("../data/portugal/soil_moisture_HS.txt", header=T, sep="\t")
+wc.NSA <- read.table("../data/portugal/soil_moisture_NSA.txt", header=T,
+                     sep="\t")
 
 
 # FUNCTIONS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -364,40 +363,21 @@ if (!wc.new) {
                      index(wc.NSA) <= datrg.NSA[2]]
 }
 
-# TOWER DATA: METEO ------------------------------------------------------------
+# TOWER DATA -------------------------------------------------------------------
 
-tower$date <- NA  # date (Y-m-d)
-class(tower$date) <- "Date"
-
-# hhmm==0 is understood as 24:00 in file but as 0:00 here;
-# therefore increase doy by 1
-# i.e. "doy=320, hhmm=0" becomes "doy=321, hhmm=0"
-tower$doy[tower$hhmm == 0] <- tower$doy[tower$hhmm == 0] + 1
-
-# convert dates into POSIX-readable dates
-years <- as.numeric(unique(c(tower$year, format(index(HS$R), "%Y"))))
-for (y in years) {
-  tower$date[tower$year == y] <- as.Date(tower$doy[tower$year == y],
-                                         origin=paste0(y - 1, "-12-31"))
-}
-hours <- sprintf("%02d", floor(tower$hhmm / 100))
-minutes <- sprintf("%02d", tower$hhmm - (floor(tower$hhmm / 100) * 100))
-seconds <- sprintf("%02d", rep(0, length(tower$hhmm)))
-tower$dati <- paste0(as.character(tower$date), " ", hours, ":", minutes, ":",
-                     seconds)
-
-# select relevant columns, convert to xts
-tower <- tower[, -c(1:5, ncol(tower) - 1:3)]
-tower <- xts(tower[2:nrow(tower), -ncol(tower)],
-             order.by=as.POSIXct(tower$dati[2:nrow(tower)]), tzone="UTC")
-
+tower <- xts(tower[, -(1:3)],
+             order.by=as.POSIXct(paste(tower$date, tower$time)))
+tower <- tower[!duplicated(index(tower))]
+# take latent heat flux with Foken/Mauder quality flag 0, 1 (= quality ok)
+tower.le <- tower$LE[tower$qc_LE == 0 | tower$qc_LE == 1]
+tower.le <- tower.le[!duplicated(index(tower.le))]
 # fill up missing dates
-tower <- merge(xts(order.by=TimeSeq(tower, "30 min")), tower, tzone="UTC")
+tower <- merge(xts(order.by=TimeSeq(tower, "30 min", "hours")), tower)
+tower.le <- merge(xts(order.by=TimeSeq(tower, "30 min", "hours")), tower.le)
 
-
-# !!! resume here: more general way?
 # simulation time sequence
-timeseq <- echseTimeSeq(index(tower), tstart, dt)
+timeseq <- echseTimeSeq(index(merge(HS[[1]], NSA[[1]], tower, all=FALSE)),
+                        tstart, dt)
 
 # derive sunshine hours according to WMO, 2003 (time for which rad > 120 W.m-2)
 if (dt == 86400) {
@@ -415,17 +395,6 @@ if (dt == 86400) {
 
 # convert xts to list object (simpler access to data later on)
 tower <- as.list(tower)
-
-# TOWER DATA: EDDY -------------------------------------------------------------
-
-eddy <- xts(eddy[, -(1:3)], order.by=as.POSIXct(paste(eddy$date, eddy$time)))
-eddy <- eddy[!duplicated(index(eddy))]
-# take latent heat flux with Foken/Mauder quality flag 0, 1 (= quality ok)
-eddy.le <- eddy$LE[eddy$qc_LE == 0 | eddy$qc_LE == 1]
-eddy.le <- eddy.le[!duplicated(index(eddy.le))]
-# fill up missing dates
-eddy <- merge(xts(order.by=TimeSeq(eddy, "30 min", "hours")), eddy)
-eddy.le <- merge(xts(order.by=TimeSeq(eddy, "30 min", "hours")), eddy.le)
 
 
 # ENGINE PARAMETERS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -502,8 +471,10 @@ rough_bare <- 0.01
 rss_a <- 37.5  # calibration...
 rss_b <- -1.23  # calibration...
 
+# path to meteo input files
 path.meteo <- paste0("~/uni/projects/evap_portugal/data/forcing/",
                      "meteo/05_meteofill/out/", fs, "/")
+# path to model directories (evap_portugal, ...)
 path.proj <- paste0("~/uni/projects/")
 
 # estimate f_day & f_night from soil heat flux and net radiation
@@ -524,7 +495,7 @@ if (output != "radex") {
   radex.out <- echseParEst("radex",
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          fs, "/test1.txt"),
-                           rsdfile="data/portugal/Kdown",
+                           rsdfile="../data/portugal/Kdown",
                            r.quantile=0.05, plots=FALSE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
@@ -533,11 +504,11 @@ if (output != "radex") {
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, function returns suggested values from Maidment (1993)
 emis.out <- echseParEst("emis",
-                        rsdfile="data/portugal/Kdown",
-                        rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                        rsdfile="../data/portugal/Kdown",
+                        rxfile=paste0(path.proj, "/radex_portugal/run/out/",
                                       fs, "/test1.txt"),
-                        rldfile="data/portugal/Ldown",
-                        rlufile="data/portugal/Lup",
+                        rldfile="../data/portugal/Ldown",
+                        rlufile="../data/portugal/Lup",
                         tafile=paste0(path.meteo, "temper_data.dat"),
                         hrfile=paste0(path.meteo, "rhum_data.dat"),
                         fs=fs,
@@ -547,9 +518,9 @@ emis.out <- echseParEst("emis",
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
 fcorr.out <- echseParEst("fcorr",
-                         rldfile="data/portugal/Ldown",
-                         rlufile="data/portugal/Lup",
-                         rsdfile="data/portugal/Kdown",
+                         rldfile="../data/portugal/Ldown",
+                         rlufile="../data/portugal/Lup",
+                         rsdfile="../data/portugal/Kdown",
                          hrfile=paste0(path.meteo, "rhum_data.dat"),
                          rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                        fs, "/test1.txt"),
@@ -583,8 +554,8 @@ sharedParamNum <- list(choice_et=et.choice[2],
 
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai) ----------------------------
 
-alb <- echseParEst("alb", rsdfile="data/portugal/Kdown",
-                   rsufile="data/portugal/Kup", plots=TRUE)
+alb <- echseParEst("alb", rsdfile="../data/portugal/Kdown",
+                   rsufile="../data/portugal/Kup", plots=TRUE)
 cano_height <- 0.20  # ifelse(fs=="NSA", 7.98, 0.20)
 lai <- 0.778  # ifelse(fs == "NSA", 1.397, 0.778)
 
@@ -622,7 +593,7 @@ paramNum.tex <- xtable(paramNum.df, align=c("c", "l", "r", "l", "l"),
                                       " Portugal"),
                        label=paste0("tab:portugal", fs, "_paramNum"))
 print.xtable(paramNum.tex,
-             file=paste0("doku/portugal", fs, "_paramNum.tex"),
+             file=paste0("../doku/portugal", fs, "_paramNum.tex"),
              include.rownames=FALSE, sanitize.text.function=identity,
              caption.placement="top")
 
@@ -654,7 +625,7 @@ sharedParamNum.tex <- xtable(sharedParamNum.df,
                              label=paste0("tab:portugal", fs,
                                           "_sharedParamNum"))
 print.xtable(sharedParamNum.tex,
-             file=paste0("doku/portugal", fs, "_sharedParamNum.tex"),
+             file=paste0("../doku/portugal", fs, "_sharedParamNum.tex"),
              include.rownames=FALSE, sanitize.text.function=identity,
              caption.placement="top")
 
@@ -670,7 +641,7 @@ inputExt.tex <- xtable(inputExt.df, align=c("c", "l", "r", "l"),
                                       " Portugal"),
                        label=paste0("tab:portugal", fs, "_inputExt"))
 print.xtable(inputExt.tex,
-             file=paste0("doku/portugal", fs, "_inputExt.tex"),
+             file=paste0("../doku/portugal", fs, "_inputExt.tex"),
              include.rownames=FALSE, sanitize.text.function=identity,
              caption.placement="top")
 }
@@ -690,11 +661,11 @@ echseInput(engine=engine,
            directory=path.veg)
 
 # apress (Air Pressure, hPa, average)
-echseInput(engine=engine, 
-           variable="apress", 
-           na.val=mean(as.numeric(tower.list[[8]]), na.rm=T), 
-           stn="tower", 
-           column=8, 
+echseInput(engine=engine,
+           variable="apress",
+           na.val=mean(as.numeric(tower[[10]]), na.rm=T),
+           stn="tower",
+           column=10,
            t.seq=timeseq,
            directory=path.meteo)
 
@@ -755,9 +726,9 @@ echseInput(engine=engine,
 # rhum (Relative Humidity, %, average)
 echseInput(engine=engine,
            variable="rhum",
-           na.val=mean(as.numeric(tower.list[[6]]), na.rm=T), 
+           na.val=mean(as.numeric(tower[[9]]), na.rm=T), 
            stn="tower",
-           column=6,
+           column=9,
            t.seq=timeseq,
            directory=path.meteo)
 
@@ -774,7 +745,7 @@ echseInput(engine=engine,
 if (A$sundur == 1) {
   sundur.df <- data.frame(end_of_interval=format(index(sundur.xts),
                                                  "%Y-%m-%d %H:%M:%S"),
-                          sundur.xts)
+                          sundur)
   names(sundur.df)[2] <- "tower"
   write.matrix(sundur.df, paste0(path.meteo, "sundur_data.dat"), sep="\t")
 }
@@ -782,7 +753,7 @@ if (A$sundur == 1) {
 # temper (Mean Temperature over Time Interval, degC, average)
 echseInput(engine=engine,
            variable="temper",
-           na.val=mean(get(paste0(fs, ".list"))[[2]], na.rm=T),  # not perfect
+           na.val=mean(get(fs)[[2]], na.rm=T),  # not perfect
            stn=fs,
            column=2,
            t.seq=timeseq,
