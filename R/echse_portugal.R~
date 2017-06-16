@@ -394,8 +394,6 @@ tower <- xts(tower[2:nrow(tower), -ncol(tower)],
 # fill up missing dates
 tower <- merge(xts(order.by=TimeSeq(tower, "30 min")), tower, tzone="UTC")
 
-
-# !!! resume here: more general way?
 # simulation time sequence
 timeseq <- echseTimeSeq(index(tower), tstart, dt)
 

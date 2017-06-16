@@ -1,20 +1,20 @@
 ###########################################################
 # Author: Julius Eberhard
-# Last Edit: 2016-02-12
+# Last Edit: 2017-06-16
 # Project: ECHSE Evapotranspiration
-# Function: albsin
+# Function: echseAlbSin
 # Aim: Writing Albedo Time Series with Sinusoidal Behavior,
 #      Assuming a One-Year Length Period
 ###########################################################
 
-albsin <- function(tstart,  # start date, format "Y-m-d hh:mm:ss"
-                   tend,    # end date, format "Y-m-d hh:mm:ss"
-                   intv,    # time interval, "halfhour", "hour", "day"
-                   albmin,  # minimum albedo
-                   albmax,  # maximum albedo
-                   tmax     # date of maximum albedo (doy)
-                   ) {
-  
+echseAlbSin <- function(tstart,  # start date, format "Y-m-d hh:mm:ss"
+                        tend,    # end date, format "Y-m-d hh:mm:ss"
+                        intv,    # time interval, "halfhour", "hour", "day"
+                        albmin,  # minimum albedo
+                        albmax,  # maximum albedo
+                        tmax     # date of maximum albedo (doy)
+                        ) {
+
   if (system("hostname", intern=T) == "jurek-PC") {
     source("C:/Users/jurek/R/jufun.R")
   } else {
