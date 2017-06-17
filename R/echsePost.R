@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-12
+# Last Edit: 2017-06-17
 # Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
@@ -92,7 +92,7 @@ echsePost <- function(engine,  # name of ECHSE engine
       wind.ma <- MovAve(fs, 11, period, 0, ma.width)
 
       # plot
-      pdf(paste0("plot_evap_compare_portugal_", fs, "_", dstart, "_", dend,
+      pdf(paste0("../plot_evap_compare_portugal_", fs, "_", dstart, "_", dend,
                  ".pdf"))
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
@@ -149,7 +149,7 @@ echsePost <- function(engine,  # name of ECHSE engine
       etsum <- apply.daily(res, sum)
 
       # plot
-      pdf("plot_evap_compare_morocco.pdf")
+      pdf("../plot_evap_compare_morocco.pdf")
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
       plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
@@ -186,28 +186,18 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     if (engine == "evap_portugal") {
     # Portugal
-      pdf(paste0("plot_evap_cum_portugal_", fs, "_", dstart, "_", dend, ".pdf"))
+      pdf(paste0("../plot_evap_cum_portugal_", fs, "_", dstart, "_", dend,
+                 ".pdf"))
       plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
       lines(cumsum(na.exclude(get(fs)[[8]][index(get(fs)[[8]]) >=
                                            index(res)[1]])),
             col=2)
-      if (fs == "HS") {
-      # Hauptstation
-        lines(cumsum(na.exclude(HS.list[[8]][index(HS.list[[8]]) >=
-                                             index(res)[1]])),
-              col=2)
-      } else {
-      # Nebenstation A
-        lines(cumsum(na.exclude(NSA.list[[8]][index(NSA.list[[8]]) >=
-                                              index(res)[1]])),
-              col=2)
-        legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
-      }
+      legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
       dev.off()
     } else {
     # Morocco
-      pdf("plot_et_cum_morocco.pdf")
+      pdf("../plot_et_cum_morocco.pdf")
       plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
       lines(cumsum(na.exclude(eta.day.xts[index(eta.day.xts) >=
@@ -233,10 +223,10 @@ echsePost <- function(engine,  # name of ECHSE engine
     }
 
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_glorad_compare_portugal_", fs, "_", dstart,
+      pdf(paste0("../plot_glorad_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
     } else {
-      pdf("plot_glorad_compare_morocco.pdf")
+      pdf("../plot_glorad_compare_morocco.pdf")
     }
 
     plot(res, ylim=c(0, 500), main=engine, ylab=comp)
@@ -247,10 +237,10 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_glorad_cum_portugal_", fs, "_", dstart, "_",
-                 dend, ".pdf"))
+      pdf(paste0("../plot_glorad_cum_portugal_", fs, "_", dstart, "_", dend,
+                 ".pdf"))
     } else {
-      pdf("plot_glorad_cum_morocco.pdf")
+      pdf("../plot_glorad_cum_morocco.pdf")
     }
 
     plot(cumsum(res), ylim=c(0, 50000), main=paste(engine, "cumulative"),
@@ -265,9 +255,9 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      rnet.plot <- get(paste0(fs, ".list"))[[1]]
-      pdf(paste0("plot_rad_net_compare_portugal_", fs, "_", dstart,
-                 "_", dend, ".pdf"))
+      rnet.plot <- get(fs)[[1]]
+      pdf(paste0("../plot_rad_net_compare_portugal_", fs, "_", dstart, "_",
+                 dend, ".pdf"))
 #      plot(res, ylim=c(0, 800), main=engine, ylab=comp)
       plot(res[round(length(res) / 3):round(length(res) / 1.5)],
            ylim=c(0, 800), main=engine, ylab=comp)
@@ -279,8 +269,8 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_rad_net_cum_portugal_", fs, "_", dstart, "_",
-                 dend, ".pdf"))
+      pdf(paste0("../plot_rad_net_cum_portugal_", fs, "_", dstart, "_", dend,
+                 ".pdf"))
       plot(cumsum(res), ylim=c(1, 30000), main=paste(engine, "cumulative"),
            ylab="cumulative net radiation (Wm2)")
       lines(cumsum(rnet.plot[index(rnet.plot) >= index(res)[1]]), col=2)
@@ -294,8 +284,8 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      sheat.plot <- get(paste0(fs, ".list"))[[3]]
-      pdf(paste0("plot_soilheat_compare_portugal_", fs, "_", dstart,
+      sheat.plot <- get(fs)[[3]]
+      pdf(paste0("../plot_soilheat_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
 
       plot(res, ylim=c(-20, 150), main=engine, ylab=comp)
@@ -307,7 +297,7 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # CUMULATIVE PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      pdf(paste0("plot_soilheat_cum_portugal_", fs, "_", dstart, "_",
+      pdf(paste0("../plot_soilheat_cum_portugal_", fs, "_", dstart, "_",
                  dend, ".pdf"))
 
       plot(cumsum(res), ylim=c(-100, 1800),

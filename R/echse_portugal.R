@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-16
+# Last Edit: 2017-06-17
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -26,6 +26,8 @@
 #                                                estimate radex_a, radex_b.
 # Once the engines rad_net_portugal and radex_portugal have been run for both
 # field stations (HS, NSA), ET can be calculated properly for both stations.
+# TODO(2017-06-17): errors still possible when running rad_net before estimating
+#                   radex_* (glorad exceeds radex)!
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 rm(list=ls())
@@ -38,7 +40,7 @@ Sys.setenv(TZ="UTC")
 # PROGRAM PARAMETERS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # choose output [evap, glorad, gloradmax, rad_net, radex, soilheat]
-output <- "glorad"
+output <- "evap"
 # choose field station [HS, NSA]
 fs <- "HS"
 # potential [etp] or actual [eta] evapotranspiration
@@ -472,7 +474,7 @@ rss_a <- 37.5  # calibration...
 rss_b <- -1.23  # calibration...
 
 # path to meteo input files
-path.meteo <- paste0("~/uni/projects/evap_portugal/data/forcing/",
+path.meteo <- paste0("~/uni/projects/", engine, "/data/forcing/",
                      "meteo/05_meteofill/out/", fs, "/")
 # path to model directories (evap_portugal, ...)
 path.proj <- paste0("~/uni/projects/")
@@ -788,7 +790,7 @@ echseInput(engine=engine,
 # wind (Wind Speed, m.s-1, average)
 echseInput(engine=engine,
            variable="wind",
-           na.val=mean(get(paste0(fs, ".list"))[[11]], na.rm=T),  # not perfect
+           na.val=mean(get(fs)[[11]], na.rm=T),  # not perfect
            stn=fs,
            column=11,
            t.seq=timeseq,
@@ -812,52 +814,41 @@ echsePost(engine, et.choice, ma.width=1, fs=fs, comp=output, wc_res=wc_res,
           wc_sat=wc_sat)
 
 
-# SHOW RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+# SAVE RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 Sys.sleep(1.0)
 
 dstart <- strsplit(tstart, " ")[[1]][1]
 dend <- strsplit(tend, " ")[[1]][1]
 
-if (output %in% c("evap", "glorad", "rad_net", "soilheat")) {
-  comp.file <- paste0("plot_", output, "_compare_portugal_", fs, "_",
-                      dstart, "_", dend, ".pdf")
-  cum.file <- paste0("plot_", output, "_cum_portugal_", fs, "_",
-                     dstart, "_", dend, ".pdf")
+if (is.null(warnings())) {
+  if (output %in% c("evap", "glorad", "rad_net", "soilheat")) {
+    comp.file <- paste0("plot_", output, "_compare_portugal_", fs, "_",
+                        dstart, "_", dend, ".pdf")
+    cum.file <- paste0("plot_", output, "_cum_portugal_", fs, "_", dstart,
+                       "_", dend, ".pdf")
+    if (output == "evap")
+      path.res <- paste0("../results/evap_portugal/", et.choice[1], "_", etmeth,
+                         "/")
+    else
+      path.res <- paste0("../results/", engine, "/")
+  }
+
+  # move normal plot to archive directory
+  system(paste0("mv ../", comp.file, " ", path.res))
+  # move cumulative plot to archive directory
+  system(paste0("mv ../", cum.file, " ", path.res))
 }
+
+# copy simulation results to archive directory
+system(paste0("cd ~/uni/projects/", engine, "/run/out; cp test1.txt ", fs,
+              "/test1.txt"))
+
+
+# SHOW RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+Sys.sleep(1.0)
 
 # open pdf for comparison between simulation and observation
-if (is.null(warnings())) {
-  system(paste0("cd ~/boxup/whk_echse; evince ", comp.file, " &"))
-}
-
-
-# SAVE RESULTS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-if (is.null(warnings())) {
-  if (output == "evap") {
-    # move plot for comparison to archive directory
-    system(paste0("cd ~/boxup/whk_echse; mv ", comp.file,
-                  " results/evap_portugal/", et.choice[1], "_", etmeth, "/"))
-    # move cumulative plot to archive dir
-    system(paste0("cd ~/boxup/whk_echse; mv ", cum.file,
-                  " results/evap_portugal/", et.choice[1], "_", etmeth, "/"))
-    # copy simulation results to archive dir
-    system(paste0("cd ~/uni/projects/evap_portugal/run/out; cp test1.txt ",
-                  fs, "/test1.txt"))
-  } else if (output %in% c("glorad", "rad_net", "soilheat")) {
-    # move plot for comparison to archive directory
-    system(paste0("cd ~/boxup/whk_echse; mv ", comp.file, " results/", engine,
-                  "/"))
-    # move cumulative plot to archive dir
-    system(paste0("cd ~/boxup/whk_echse; mv ", cum.file, " results/", engine,
-                  "/"))
-    # copy simulation results to archive dir
-    system(paste0("cd ~/uni/projects/", engine, "/run/out; cp test1.txt ",
-                  fs, "/test1.txt"))
-  } else if (output %in% c("gloradmax", "radex")) {
-    # copy simulation results to archive dir
-    system(paste0("cd ~/uni/projects/", engine, "/run/out; cp test1.txt ",
-                  fs, "/test1.txt"))
-  }
-}
+if (is.null(warnings()) & exists("comp.file"))
+  system(paste0("evince ", path.res, comp.file, " &"))

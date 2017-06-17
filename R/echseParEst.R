@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-16
+# Last Edit: 2017-06-17
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -407,6 +407,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     est.dat$rnet.night <- est.dat$rnet[ix.night]
     est.dat$sheat.day <- est.dat$sheat[ix.day]
     est.dat$sheat.night <- est.dat$sheat[ix.night]
+    names(est.dat)[1:2] <- c("rnet.day", "sheat.day")
 
     # diagnostic plots
     if (plots) {
