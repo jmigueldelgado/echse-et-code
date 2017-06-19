@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-17
+# Last Edit: 2017-06-19
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -22,12 +22,12 @@
 # Some parameters are estimated using output from other ECHSE engines.
 # Therefore: Before estimating f_day, f_night,   run output=="rad_net",
 #            before estimating radex_a, radex_b, run output=="radex",
-#            before estimating fcorr_a, fcorr_b, run output=="radex" AND
-#                                                estimate radex_a, radex_b.
+#            before estimating fcorr_a, fcorr_b, run output=="radex"
 # Once the engines rad_net_portugal and radex_portugal have been run for both
 # field stations (HS, NSA), ET can be calculated properly for both stations.
 # TODO(2017-06-17): errors still possible when running rad_net before estimating
 #                   radex_* (glorad exceeds radex)!
+# TODO(2017-06-19): check if current setting works when running radex FIRST!
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 rm(list=ls())
@@ -481,7 +481,7 @@ path.proj <- paste0("~/uni/projects/")
 
 # estimate f_day & f_night from soil heat flux and net radiation
 # ... Remember to run the rad_net_* engine first!
-if (output != "rad_net") {
+if (output != "rad_net" && output != "radex") {
   f.out <- echseParEst("f",
                        rnetfile=paste0(path.proj, "rad_net_portugal/run/out/",
                                        fs, "/test1.txt"),
@@ -519,18 +519,20 @@ emis.out <- echseParEst("emis",
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
-fcorr.out <- echseParEst("fcorr",
-                         rldfile="../data/portugal/Ldown",
-                         rlufile="../data/portugal/Lup",
-                         rsdfile="../data/portugal/Kdown",
-                         hrfile=paste0(path.meteo, "rhum_data.dat"),
-                         rxfile=paste0(path.proj, "radex_portugal/run/out/",
-                                       fs, "/test1.txt"),
-                         tafile=paste0(path.meteo, "temper_data.dat"),
-                         emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
-                         radex_b=radex_b, emismeth=emismeth, plots=FALSE)
-fcorr_a <- fcorr.out$a
-fcorr_b <- fcorr.out$b
+if (output != "radex") {
+  fcorr.out <- echseParEst("fcorr",
+                           rldfile="../data/portugal/Ldown",
+                           rlufile="../data/portugal/Lup",
+                           rsdfile="../data/portugal/Kdown",
+                           hrfile=paste0(path.meteo, "rhum_data.dat"),
+                           rxfile=paste0(path.proj, "radex_portugal/run/out/",
+                                         fs, "/test1.txt"),
+                           tafile=paste0(path.meteo, "temper_data.dat"),
+                           emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
+                           radex_b=radex_b, emismeth=emismeth, plots=FALSE)
+  fcorr_a <- fcorr.out$a
+  fcorr_b <- fcorr.out$b
+}
 
 if (emismeth == "both") {
 # In dubio, return Brunt coefficients because this is the favored model.
