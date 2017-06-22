@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-19
+# Last Edit: 2017-06-22
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
@@ -20,14 +20,13 @@
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 # Note on parameter estimation:
 # Some parameters are estimated using output from other ECHSE engines.
-# Therefore: Before estimating f_day, f_night,   run output=="rad_net",
-#            before estimating radex_a, radex_b, run output=="radex",
-#            before estimating fcorr_a, fcorr_b, run output=="radex"
-# Once the engines rad_net_portugal and radex_portugal have been run for both
-# field stations (HS, NSA), ET can be calculated properly for both stations.
-# TODO(2017-06-17): errors still possible when running rad_net before estimating
-#                   radex_* (glorad exceeds radex)!
-# TODO(2017-06-19): check if current setting works when running radex FIRST!
+# Therefore: If some of the input data might have changed, run
+#            (1) output="radex" (ouput for estimating radex & fcorr params),
+#            (2) output="rad_net" (output for estimating f_day, f_night),
+#            (3) output="evap",
+#            for the *respective station*.
+# Just running output="evap" is fine when, for the respective station,
+# radex and rad_net data are unchanged.
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 rm(list=ls())
@@ -41,7 +40,7 @@ Sys.setenv(TZ="UTC")
 
 # choose output [evap, glorad, gloradmax, rad_net, radex, soilheat]
 output <- "evap"
-# choose field station [HS, NSA]
+# choose field station [HS, NSA, tower]
 fs <- "HS"
 # potential [etp] or actual [eta] evapotranspiration
 et.choice <- "eta"
@@ -50,7 +49,7 @@ et.choice[2] <- 13
 # Use the newly calculated soil moisture data?
 wc.new <- TRUE
 # choose method for net emissivity [Brunt, Idso, both]
-emismeth <- "Brunt"
+emismeth <- "Idso"
 
 # model period: start & end of model period, note the format!
 if (output %in% c("gloradmax", "rad_net", "radex")) {
@@ -128,7 +127,7 @@ A <- list(alb=1,                             # albedo
 
 # locations [fs, tower, any]
 locs <- list(fs,  # alb
-             "tower",  # apress
+             "tower",  # apress, only available for tower station
              fs,  # cano_height
              "any",  # cloud, not used
              "any",  # doy
@@ -140,9 +139,9 @@ locs <- list(fs,  # alb
              fs,  # rad_net
              "any",  # rad_net_soil
              "any",  # radex
-             "tower",  # rhum
+             "tower",  # rhum, only available for tower station
              fs,  # soilheat
-             "tower",  # sundur
+             "tower",  # sundur, always taken from tower station
              "any",  # temp_max
              "any",  # temp_min
              fs,  # temper
@@ -292,7 +291,7 @@ tower.names <- c("PARgl (unit?)",
                  (Rainfall~(mm~d^{-1})),
                  (Barometric~pressure~(hPa)))
 
-# FIELD STATION DATA -----------------------------------------------------------
+# HS & NSA DATA ----------------------------------------------------------------
 
 # prepare radiation data
 rld.hly <- RadPrep(rld)
@@ -432,11 +431,11 @@ if (any(get(fs)[["theta"]] < wc_res, na.rm=TRUE))
 
 # plant parameters
 crop_faoref <- 1
-crop_makk <- 0.8
-glo_half <- 200  # global radiation at half-max stomatal *conductance*
-par_stressHum <- 0.03
-res_leaf_min <- 50
-wstressmax <- ifelse(fs == "HS", 13100, 14000)  # Gazdar, 2016
+crop_makk <- 0.14 * ifelse(fs == "tower", 1.397, 0.778) + 0.4
+glo_half <- 200  # global radiation at half-max stomatal *conductance* -> IR?
+par_stressHum <- 0.03  # description!
+res_leaf_min <- 50  # minimal leaf stomatal resistance
+wstressmax <- ifelse(fs == "tower", 14000, 13100)  # Gazdar, 2016
 wstressmin <- 100
 
 # collect individual parameters
@@ -462,9 +461,9 @@ f_day <- 0.1
 f_night <- 0.7
 fcorr_a <- 1.35
 fcorr_b <- -0.35
-h_humMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
-h_tempMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
-h_windMeas <- 2  # ifelse(fs=="NSA", 7.98, 2)
+h_humMeas <- ifelse(fs=="tower", 20, 2)
+h_tempMeas <- ifelse(fs=="tower", 20, 2)
+h_windMeas <- ifelse(fs=="tower", 20, 2)
 na_val <- "-9999."
 radex_a <- 0.25
 radex_b <- 0.5
@@ -505,17 +504,20 @@ if (output != "radex") {
 
 # compare emissivity models (Brunt vs. Idso-Jackson)
 # no estimation, function returns suggested values from Maidment (1993)
-emis.out <- echseParEst("emis",
-                        rsdfile="../data/portugal/Kdown",
-                        rxfile=paste0(path.proj, "/radex_portugal/run/out/",
-                                      fs, "/test1.txt"),
-                        rldfile="../data/portugal/Ldown",
-                        rlufile="../data/portugal/Lup",
-                        tafile=paste0(path.meteo, "temper_data.dat"),
-                        hrfile=paste0(path.meteo, "rhum_data.dat"),
-                        fs=fs,
-                        radex_a=radex_a,
-                        radex_b=radex_b)
+# ... Remember to run the radex_* engine first!
+if (output != "radex") {
+  emis.out <- echseParEst("emis",
+                          rsdfile="../data/portugal/Kdown",
+                          rxfile=paste0(path.proj, "/radex_portugal/run/out/",
+                                        fs, "/test1.txt"),
+                          rldfile="../data/portugal/Ldown",
+                          rlufile="../data/portugal/Lup",
+                          tafile=paste0(path.meteo, "temper_data.dat"),
+                          hrfile=paste0(path.meteo, "rhum_data.dat"),
+                          fs=fs,
+                          radex_a=radex_a,
+                          radex_b=radex_b)
+}
 
 # estimate fcorr_a, fcorr_b
 # ... Remember to run the radex_* engine first!
@@ -558,6 +560,8 @@ sharedParamNum <- list(choice_et=et.choice[2],
 
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai) ----------------------------
 
+# distinguish here between HS/NSA and tower: for tower, take
+# R_outS(tower) = R_netS(tower) - R_inS(HS)
 alb <- echseParEst("alb", rsdfile="../data/portugal/Kdown",
                    rsufile="../data/portugal/Kup", plots=TRUE)
 cano_height <- 0.20  # ifelse(fs=="NSA", 7.98, 0.20)
@@ -829,17 +833,18 @@ if (is.null(warnings())) {
                         dstart, "_", dend, ".pdf")
     cum.file <- paste0("plot_", output, "_cum_portugal_", fs, "_", dstart,
                        "_", dend, ".pdf")
-    if (output == "evap")
+    if (output == "evap") {
       path.res <- paste0("../results/evap_portugal/", et.choice[1], "_", etmeth,
                          "/")
-    else
+    } else {
       path.res <- paste0("../results/", engine, "/")
-  }
+    }
 
   # move normal plot to archive directory
   system(paste0("mv ../", comp.file, " ", path.res))
   # move cumulative plot to archive directory
   system(paste0("mv ../", cum.file, " ", path.res))
+  }
 }
 
 # copy simulation results to archive directory

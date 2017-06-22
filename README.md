@@ -31,7 +31,7 @@ Repository of ECHSE with added evapotranspiration methods: [code](https://github
 * [R/](./R/) &mdash; _R scripts_
   * [echse_calibration.R](./R/echse_calibration.R) &mdash; _script for estimating parameters through calibration_
   * [echse_check_functions.R](./R/echse_check_functions.R) &mdash; _script for testing some functions in ECHSE engine_
-  * [echse_morocco.R](./R/echse_morocco.R) &mdash; _main script for executing ECHSE model runs, Morocco_
+  * [echse_morocco.R](./R/echse_morocco.R) &mdash; _main script for pre-processing & executing ECHSE model runs, Morocco_
   * [echse_portugal.R](./R/echse_portugal.R) &mdash; _main script for pre-processing & executing ECHSE model runs, Portugal_
   * [echseAlbSin.R](./R/echseAlbSin.R) &mdash; _function writing sinusoidal albedo input file_
   * [echseCtrl.R](./R/echseCtrl.R) &mdash; _functions writing ECHSE control files_
