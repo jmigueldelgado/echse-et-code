@@ -1,10 +1,13 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-22
+# Last Edit: 2017-06-26
 # Project: ECHSE Evapotranspiration
 # Program: echse_portugal
 # Aim: Data Preprocessing and Main Executing Script for ET in Portugal
 #      (Herdade do Machuqueira do Grou)
+# TODO(2017-06-23): albedo for tower!
+# TODO(2017-06-26): check parameters (soil_dens, eddy_decay, f_day, f_night,
+#                   res_b, rss_a, rss_b) AND intermed steps for calculating et
 ################################################################################
 
 #:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -49,7 +52,7 @@ et.choice[2] <- 13
 # Use the newly calculated soil moisture data?
 wc.new <- TRUE
 # choose method for net emissivity [Brunt, Idso, both]
-emismeth <- "Idso"
+emismeth <- "Brunt"
 
 # model period: start & end of model period, note the format!
 if (output %in% c("gloradmax", "rad_net", "radex")) {
@@ -461,9 +464,9 @@ f_day <- 0.1
 f_night <- 0.7
 fcorr_a <- 1.35
 fcorr_b <- -0.35
-h_humMeas <- ifelse(fs=="tower", 20, 2)
-h_tempMeas <- ifelse(fs=="tower", 20, 2)
-h_windMeas <- ifelse(fs=="tower", 20, 2)
+h_humMeas <- ifelse(fs == "tower", 20, 2)
+h_tempMeas <- ifelse(fs == "tower", 20, 2)
+h_windMeas <- ifelse(fs == "tower", 20, 2)
 na_val <- "-9999."
 radex_a <- 0.25
 radex_b <- 0.5
@@ -497,7 +500,7 @@ if (output != "radex") {
                            rxfile=paste0(path.proj, "radex_portugal/run/out/",
                                          fs, "/test1.txt"),
                            rsdfile="../data/portugal/Kdown",
-                           r.quantile=0.05, plots=FALSE)
+                           r.quantile=0.05, plots=TRUE)
   radex_a <- radex.out[1]
   radex_b <- radex.out[2]
 }
@@ -564,8 +567,8 @@ sharedParamNum <- list(choice_et=et.choice[2],
 # R_outS(tower) = R_netS(tower) - R_inS(HS)
 alb <- echseParEst("alb", rsdfile="../data/portugal/Kdown",
                    rsufile="../data/portugal/Kup", plots=TRUE)
-cano_height <- 0.20  # ifelse(fs=="NSA", 7.98, 0.20)
-lai <- 0.778  # ifelse(fs == "NSA", 1.397, 0.778)
+cano_height <- ifelse(fs == "tower", 7.98, 0.20)
+lai <- ifelse(fs == "tower", 1.397, 0.778)
 
 
 # WRITE LATEX FILES ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::

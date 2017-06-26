@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-17
+# Last Edit: 2017-06-26
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -177,13 +177,12 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # diagnostic plots
     if (plots) {
       # plot histogram of calculated ratios
-      pdf("../doku/plot_radex1.pdf")
+      pdf("../doku/plot_radex.pdf", width=8, height=4)
+      par(mfrow=c(1, 2))
       hist(rad.ratio, xlab="glorad/radex", breaks="Sturges", main="",
            xlim=c(0, 1))
-      dev.off()
 
       # plot rad.ratio over hours of day to detect subdaily trends
-      pdf("../doku/plot_radex2.pdf")
       plot(as.numeric(format(index(est.dat$rx[ix]), "%H")), rad.ratio,
            ylim=c(0, 1), xlab="hour of day", ylab="glorad/radex")
       abline(h=quantile(rad.ratio, r.quantile, na.rm=T), lty="dashed")
