@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-17
+# Last Edit: 2017-06-30
 # Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
@@ -76,29 +76,30 @@ echsePost <- function(engine,  # name of ECHSE engine
       period <- seq(as.POSIXct(tstart, tz="UTC"), as.POSIXct(tend, tz="UTC"),
                     by="1 hour")
       xl <- c(as.POSIXct(tstart), as.POSIXct(tend))
-      # total incoming radiation
-      rad.ma <- MovAve("tower", 3, period, 0, ma.width)
       # relative air humidity
-      hum.ma <- MovAve("tower", 6, period, 0, ma.width)
+      hum.ma <- MovAve("tower", "RH", period, 0, ma.width)
       # net radiation
-      radn.ma <- MovAve(fs, 1, period, 0, ma.width)
+      radn.ma <- MovAve(fs, "Rnet", period, 0, ma.width)
       # air temperature
-      temp.ma <- MovAve(fs, 2, period, mean(as.numeric(get(fs)[[2]])), ma.width)
+      temp.ma <- MovAve(fs, "T", period,
+                        mean(as.numeric(get(fs)[["T"]]), na.rm=TRUE), ma.width)
       # soil heat flux
-      sohe.ma <- MovAve(fs, 3, period, 0, ma.width)
+      sohe.ma <- MovAve(ifelse(fs == "tower", "HS", fs), "G", period, 0,
+                        ma.width)
       # soil moisture content
-      somo.ma <- MovAve(fs, 4, period, wc_res, ma.width)
+      somo.ma <- MovAve(ifelse(fs == "tower", "HS", fs), "theta", period,
+                        wc_res, ma.width)
       # wind speed
-      wind.ma <- MovAve(fs, 11, period, 0, ma.width)
+      wind.ma <- MovAve(fs, "wind", period, 0, ma.width)
 
       # plot
       pdf(paste0("../plot_evap_compare_portugal_", fs, "_", dstart, "_", dend,
                  ".pdf"))
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
-      plot(period, rad.ma, xlim=xl, type="l", ylab=(Rad~(W~m^{-2})),
+      plot(period, radn.ma, xlim=xl, type="l", ylab=(Net~rad~(W~m^{-2})),
            axes=FALSE, main=c(paste0("Engine: ", engine, ", ", fs), et.choice))
-      AddAxis(rad.ma)
+      AddAxis(radn.ma)
       par(mar=c(0, 5, 0, 2))
       plot(period, temp.ma, xlim=xl, type="l", ylab=(Temp~({}^o*C)), axes=FALSE)
       AddAxis(temp.ma)
@@ -190,10 +191,12 @@ echsePost <- function(engine,  # name of ECHSE engine
                  ".pdf"))
       plot(cumsum(res), ylim=c(0, 50), main=paste(engine, "cumulative"),
            ylab="cumulative ET (mm)")
-      lines(cumsum(na.exclude(get(fs)[[8]][index(get(fs)[[8]]) >=
-                                           index(res)[1]])),
-            col=2)
-      legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
+      if (fs %in% c("HS", "NSA")) {
+        lines(cumsum(na.exclude(get(fs)[["evap"]][index(get(fs)[["evap"]]) >=
+                                                  index(res)[1]])),
+              col=2)
+        legend("topright", c("simulation", "observation"), lty=1, col=c(1, 2))
+      }
       dev.off()
     } else {
     # Morocco
@@ -212,7 +215,8 @@ echsePost <- function(engine,  # name of ECHSE engine
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
     # Portugal
-      rad.plot <- apply.daily(tower["rsd"], mean)
+      rad.plot <- apply.daily(get(ifelse(fs == "tower", "HS", fs))["RSdown"],
+                              mean)
       index(rad.plot) <- as.POSIXlt(index(rad.plot))
       index(rad.plot)$hour <- "00"
     } else {
@@ -255,7 +259,7 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      rnet.plot <- get(fs)[[1]]
+      rnet.plot <- get(fs)[["Rnet"]]
       pdf(paste0("../plot_rad_net_compare_portugal_", fs, "_", dstart, "_",
                  dend, ".pdf"))
 #      plot(res, ylim=c(0, 800), main=engine, ylab=comp)
@@ -284,7 +288,7 @@ echsePost <- function(engine,  # name of ECHSE engine
 
     # NORMAL PLOT
     if (tail(strsplit(engine, "_")[[1]], 1) == "portugal") {
-      sheat.plot <- get(fs)[[3]]
+      sheat.plot <- get(ifelse(fs == "tower", "HS", fs))[["G"]]
       pdf(paste0("../plot_soilheat_compare_portugal_", fs, "_", dstart,
                  "_", dend, ".pdf"))
 
