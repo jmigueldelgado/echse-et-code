@@ -1,9 +1,10 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-30
+# Last Edit: 2017-07-06
 # Project: ECHSE Evapotranspiration
 # Function: echsePost
 # Aim: Model Run and Data Postprocessing
+# TODO(2017-07-06): best way to set ylim in et plots?
 # TODO(2017-05-26): x axis labels for comparison plots: don't want weekdays
 ################################################################################
 
@@ -11,6 +12,7 @@ echsePost <- function(engine,  # name of ECHSE engine
                       et.choice,  # etp or eta
                       ma.width,  # width of moving average filter in time units
                       fs,  # field station name
+                      fss = "NSA",  # field station with supplementary data
                       comp = NA,  # variable for comparison btw. model & obs
                       wc_res,  # residual soil water content
                       wc_sat  # saturated soil water content
@@ -84,11 +86,9 @@ echsePost <- function(engine,  # name of ECHSE engine
       temp.ma <- MovAve(fs, "T", period,
                         mean(as.numeric(get(fs)[["T"]]), na.rm=TRUE), ma.width)
       # soil heat flux
-      sohe.ma <- MovAve(ifelse(fs == "tower", "HS", fs), "G", period, 0,
-                        ma.width)
+      sohe.ma <- MovAve(fss, "G", period, 0, ma.width)
       # soil moisture content
-      somo.ma <- MovAve(ifelse(fs == "tower", "HS", fs), "theta", period,
-                        wc_res, ma.width)
+      somo.ma <- MovAve(fss, "theta", period, wc_res, ma.width)
       # wind speed
       wind.ma <- MovAve(fs, "wind", period, 0, ma.width)
 
@@ -116,9 +116,11 @@ echsePost <- function(engine,  # name of ECHSE engine
            axes=FALSE)
       AddAxis(wind.ma)
       par(mar=c(4, 5, 0, 2))
-      plot(period, as.numeric(get(fs)[[8]][period]), xlim=xl, ylim=c(-.1, 2),
-           xlab="", ylab=(ET~(mm)), type="l")
+      # TODO(2017-07-06): best way to set ylim?
+      plot(period, as.numeric(get(fs)[["evap"]][period]), xlim=xl,
+           ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l")
       par(new=T)
+      # TODO(2017-07-06): best way to set ylim?
       plot(period[-1], as.numeric(res), xlim=xl, ylim=c(-.1, 2), col=2,
            xlab="Date", ylab="", type="l")
       legend("topright", c("simulation", "observation"), lty=1,

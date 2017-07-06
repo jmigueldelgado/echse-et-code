@@ -1,6 +1,6 @@
 ################################################################################
 # Author: Julius Eberhard
-# Last Edit: 2017-06-26
+# Last Edit: 2017-07-05
 # Project: ECHSE evapotranspiration
 # Function: echseParEst
 # Aim: Estimation of Model Parameters from Observations,
@@ -95,7 +95,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     vars.ls <- list()
     for (i in 1:length(vars)) {
-      if (vars[i] %in% c("rsd", "rsu", "rld", "rlu")) {
+      if (length(grep("\\.dat|\\.txt", get(paste0(vars[i], "file")))) == 0) {
         # These variables have sub-hourly data.
         vars.ls[[i]] <- ReadToHlyMean(get(paste0(vars[i], "file")))
       } else {
