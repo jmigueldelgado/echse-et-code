@@ -80,23 +80,40 @@ if (output %in% c("gloradmax", "rad_net", "radex")) {
 # tower
 # periods before 2014-03-31 and after 2015-09-07 don't work
 # because of missing wc data
-  tstart <- "2014-04-01 00:00:00"; tend <- "2014-05-01 00:00:00"
-  #tstart <- "2014-05-01 00:00:00"; tend <- "2014-06-01 00:00:00"
-  #tstart <- "2014-06-01 00:00:00"; tend <- "2014-07-01 00:00:00"
-  #tstart <- "2014-07-01 00:00:00"; tend <- "2014-08-01 00:00:00"
-  #tstart <- "2014-08-01 00:00:00"; tend <- "2014-09-01 00:00:00"
-  #tstart <- "2014-09-01 00:00:00"; tend <- "2014-10-01 00:00:00"
-  #tstart <- "2014-10-01 00:00:00"; tend <- "2014-11-01 00:00:00"
-  #tstart <- "2014-11-01 00:00:00"; tend <- "2014-12-01 00:00:00"
-  #tstart <- "2014-12-01 00:00:00"; tend <- "2015-01-01 00:00:00"
-  #tstart <- "2015-01-01 00:00:00"; tend <- "2015-02-01 00:00:00"
-  #tstart <- "2015-02-01 00:00:00"; tend <- "2015-03-01 00:00:00"
-  #tstart <- "2015-03-01 00:00:00"; tend <- "2015-04-01 00:00:00"
-  #tstart <- "2015-04-01 00:00:00"; tend <- "2015-05-01 00:00:00"
-  #tstart <- "2015-05-01 00:00:00"; tend <- "2015-06-01 00:00:00"
-  #tstart <- "2015-06-01 00:00:00"; tend <- "2015-07-01 00:00:00"
-  #tstart <- "2015-07-01 00:00:00"; tend <- "2015-08-01 00:00:00"
-  #tstart <- "2015-08-01 00:00:00"; tend <- "2015-09-01 00:00:00"
+  #tstart <- "2014-04-01 00:00:00"; tend <- "2014-04-16 00:00:00"
+  #tstart <- "2014-04-16 00:00:00"; tend <- "2014-05-01 00:00:00"
+  #tstart <- "2014-05-01 00:00:00"; tend <- "2014-05-16 00:00:00"
+  #tstart <- "2014-05-16 00:00:00"; tend <- "2014-06-01 00:00:00"
+  #tstart <- "2014-06-01 00:00:00"; tend <- "2014-06-16 00:00:00"
+  #tstart <- "2014-06-16 00:00:00"; tend <- "2014-07-01 00:00:00"
+  #tstart <- "2014-07-01 00:00:00"; tend <- "2014-07-16 00:00:00"
+  #tstart <- "2014-07-16 00:00:00"; tend <- "2014-08-01 00:00:00"
+  #tstart <- "2014-08-01 00:00:00"; tend <- "2014-08-16 00:00:00"
+  #tstart <- "2014-08-16 00:00:00"; tend <- "2014-09-01 00:00:00"
+  #tstart <- "2014-09-01 00:00:00"; tend <- "2014-09-16 00:00:00"
+  #tstart <- "2014-09-16 00:00:00"; tend <- "2014-10-01 00:00:00"
+  #tstart <- "2014-10-01 00:00:00"; tend <- "2014-10-16 00:00:00"
+  tstart <- "2014-10-16 00:00:00"; tend <- "2014-11-01 00:00:00"
+  #tstart <- "2014-11-01 00:00:00"; tend <- "2014-11-16 00:00:00"
+  #tstart <- "2014-11-16 00:00:00"; tend <- "2014-12-01 00:00:00"
+  #tstart <- "2014-12-01 00:00:00"; tend <- "2014-12-16 00:00:00"
+  #tstart <- "2014-12-16 00:00:00"; tend <- "2015-01-01 00:00:00"
+  #tstart <- "2015-01-01 00:00:00"; tend <- "2015-01-16 00:00:00"
+  #tstart <- "2015-01-16 00:00:00"; tend <- "2015-02-01 00:00:00"
+  #tstart <- "2015-02-01 00:00:00"; tend <- "2015-02-16 00:00:00"
+  #tstart <- "2015-02-16 00:00:00"; tend <- "2015-03-01 00:00:00"
+  #tstart <- "2015-03-01 00:00:00"; tend <- "2015-03-16 00:00:00"
+  #tstart <- "2015-03-16 00:00:00"; tend <- "2015-04-01 00:00:00"
+  #tstart <- "2015-04-01 00:00:00"; tend <- "2015-04-16 00:00:00"
+  #tstart <- "2015-04-16 00:00:00"; tend <- "2015-05-01 00:00:00"
+  #tstart <- "2015-05-01 00:00:00"; tend <- "2015-05-16 00:00:00"
+  #tstart <- "2015-05-16 00:00:00"; tend <- "2015-06-01 00:00:00"
+  #tstart <- "2015-06-01 00:00:00"; tend <- "2015-06-16 00:00:00"
+  #tstart <- "2015-06-16 00:00:00"; tend <- "2015-07-01 00:00:00"
+  #tstart <- "2015-07-01 00:00:00"; tend <- "2015-07-16 00:00:00"
+  #tstart <- "2015-07-16 00:00:00"; tend <- "2015-08-01 00:00:00"
+  #tstart <- "2015-08-01 00:00:00"; tend <- "2015-08-16 00:00:00"
+  #tstart <- "2015-08-16 00:00:00"; tend <- "2015-09-01 00:00:00"
   #tstart <- "2015-09-01 00:00:00"; tend <- "2015-09-07 17:00:00"
 }
 
@@ -329,6 +346,8 @@ tower.names <- c("PARgl (unit?)",
 # HS & NSA DATA ----------------------------------------------------------------
 
 # prepare radiation data
+hours <- as.numeric(format(index(rsd.HS), "%H"))
+rsd.HS[hours < 8 | hours > 16] <- 0
 rld.HS.hly <- RadPrep(rld.HS)
 rlu.HS.hly <- RadPrep(rlu.HS)
 rsd.HS.hly <- RadPrep(rsd.HS)
@@ -402,11 +421,12 @@ I <- (tower$qc_LE == 0 | tower$qc_LE == 1) & (tower$qc_H == 0 | tower$qc_H == 1)
 # calculate Bowen ratio where possible
 tower <- merge(tower, tower$H[I] / tower$LE[I], join="outer")
 # calculate et (mm) where possible
-# formula: et = (rsn + rln) / (dens_water * lambda * (1 + Bowen))
-# >>>>> right now it's maybe wrong
-# (should be 1000 times smaller according to formula)
-tower$evap <- (tower$NET_SW + tower$NET_LW) /
-              (2.501e6 * (1 + tower[, ncol(tower)])) * 1000
+# formula: et = 1/L * (Rnet + G) / (1 + Bow)
+tower$evap <- 1 / 2.43e9 * (tower$Rn + NSA$G) / (1 + tower[, ncol(tower)]) * 1000 * dt
+## formula: et = (rsn + rln) / (dens_water * lambda * (1 + Bowen))
+## (should be 1000 times smaller according to formula)
+#tower$evap <- (tower$NET_SW + tower$NET_LW) /
+#              (2.501e6 * (1 + tower[, ncol(tower)])) * 1000
 # fill up missing dates
 tower <- merge(xts(order.by=TimeSeq(tower, "30 min", "hours")), tower)
 # replace defective wind speed data
@@ -579,7 +599,7 @@ pores_ind <- pft.rawls(soilprop, parameters="lambda", h=0)[, "lambda"]  # lambda
 
 # check if measured water content undercuts parameter value
 if (any(get(fss)[["theta"]] < wc_res, na.rm=TRUE))
-  wc_res <- .99 * min(get(fss)[["theta"]], na.rm=TRUE)
+  wc_res <- .9 * min(get(fss)[["theta"]], na.rm=TRUE)
 
 # plant parameters
 crop_faoref <- 1
@@ -628,8 +648,7 @@ rss_b <- -1.23  # calibration...
 # ... Remember to run the rad_net_* engine first!
 if (output != "rad_net" && output != "radex") {
   f.out <- echseParEst("f",
-                       rnetfile=paste0(path.proj, "rad_net_portugal/run/out/",
-                                       fs, "/test1.txt"),
+                       rnetfile=paste0(path.meteo, "rad_net_data.dat"),
                        sheatfile=paste0(path.meteo, "soilheat_data.dat"),
                        lat=lat, lon=lon, plots=FALSE)
   f_day <- f.out[1]
@@ -644,8 +663,8 @@ if (output != "radex") {
                                          fs, "/test1.txt"),
                            rsdfile=paste0(path.meteo, "glorad_data.dat"),
                            r.quantile=0.05, plots=TRUE)
-  radex_a <- radex.out[1]
-  radex_b <- radex.out[2]
+  radex_a <- 1.01 * radex.out[1]
+  radex_b <- 1.01 * radex.out[2]
 }
 
 # compare emissivity models (Brunt vs. Idso-Jackson)
@@ -678,8 +697,8 @@ if (output != "radex") {
                            tafile=paste0(path.meteo, "temper_data.dat"),
                            emis_a=emis_a, emis_b=emis_b, radex_a=radex_a,
                            radex_b=radex_b, emismeth=emismeth, plots=FALSE)
-  fcorr_a <- round(fcorr.out$a, 3)
-  fcorr_b <- 1 - fcorr_a
+  fcorr_a <- fcorr.out$a
+  fcorr_b <- fcorr.out$b
 }
 
 if (emismeth == "both") {
@@ -706,8 +725,6 @@ sharedParamNum <- list(choice_et=et.choice[2],
 
 # EXTERNAL INPUT PARAMETERS (alb, cano_height, lai) ----------------------------
 
-# distinguish here between HS/NSA and tower: for tower, take
-# R_outS(tower) = R_netS(tower) - R_inS(HS)
 alb <- echseParEst("alb", rsdfile=paste0(path.data, "Kdown"),
                    rsufile=paste0(path.data, "Kup"), plots=TRUE)
 cano_height <- ifelse(fs == "tower", 7.98, 0.20)
@@ -830,7 +847,7 @@ echseInput(engine=engine,
 # wc_vol_root (Water Content in Root Zone, -, average)
 echseInput(engine=engine,
            variable="wc_vol_root",
-           na.val=wc_res,
+           na.val=1.1 * wc_res,
            stn=fss,
            column="theta",
            t.seq=timeseq,
@@ -839,7 +856,7 @@ echseInput(engine=engine,
 # wc_vol_top (Water Content in Topsoil, -, average)
 echseInput(engine=engine,
            variable="wc_vol_top",
-           na.val=wc_res,
+           na.val=1.1 * wc_res,
            stn=fss,
            column="theta",
            t.seq=timeseq,

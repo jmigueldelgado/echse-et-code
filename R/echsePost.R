@@ -30,6 +30,10 @@ echsePost <- function(engine,  # name of ECHSE engine
     pr <- pretty(range(data, na.rm=TRUE))
     atlab <- c(pr[2], tail(pr, 2)[1])
     axis(2, at=atlab, labels=atlab)
+    polygon(c(period[1] - 1e6, tail(period, 1),
+              tail(period, 1), period[1] - 1e6),
+            c(atlab[1], atlab[1], atlab[2], atlab[2]),
+            col=rgb(0.7, 0.7, 0.7, 0.2), border=NA)
   }
 
   MovAve <- function(station,
@@ -92,12 +96,12 @@ echsePost <- function(engine,  # name of ECHSE engine
       # wind speed
       wind.ma <- MovAve(fs, "wind", period, 0, ma.width)
 
-      # plot
+      # plot with weather components
       pdf(paste0("../plot_evap_compare_portugal_", fs, "_", dstart, "_", dend,
                  ".pdf"))
       layout(matrix(1:7, 7, 1), heights=c(.2, rep(.1, 5), .3))
       par(mar=c(0, 5, 5, 2))
-      plot(period, radn.ma, xlim=xl, type="l", ylab=(Net~rad~(W~m^{-2})),
+      plot(period, radn.ma, xlim=xl, type="l", ylab=(Net~r.~(W~m^{-2})),
            axes=FALSE, main=c(paste0("Engine: ", engine, ", ", fs), et.choice))
       AddAxis(radn.ma)
       par(mar=c(0, 5, 0, 2))
@@ -116,6 +120,21 @@ echsePost <- function(engine,  # name of ECHSE engine
            axes=FALSE)
       AddAxis(wind.ma)
       par(mar=c(4, 5, 0, 2))
+      # TODO(2017-07-06): best way to set ylim?
+      plot(period, as.numeric(get(fs)[["evap"]][period]), xlim=xl,
+           ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l")
+      par(new=T)
+      # TODO(2017-07-06): best way to set ylim?
+      plot(period[-1], as.numeric(res), xlim=xl, ylim=c(-.1, 2), col=2,
+           xlab="Date", ylab="", type="l")
+      legend("topright", c("simulation", "observation"), lty=1,
+             col=c(2, 1), bty="n")
+      dev.off()
+
+      # single plot
+      pdf(paste0("../doku/plot_evap_portugal_", fs, "_", dstart, "_", dend,
+                 ".pdf"),
+          height=3, width=12)
       # TODO(2017-07-06): best way to set ylim?
       plot(period, as.numeric(get(fs)[["evap"]][period]), xlim=xl,
            ylim=c(-.1, 2), xlab="", ylab=(ET~(mm)), type="l")

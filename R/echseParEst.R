@@ -134,7 +134,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
  
     # diagnostic plot
     if (plots) {
-      pdf("../doku/plot_alb.pdf", width=6, height=4)
+      pdf("../doku/fig/plot_alb.pdf", width=6, height=4)
       plot(apply.daily(alb.series[alb.series < 1], mean),
            ylab=expression(mu), main="", type="p", pch=20)
       dev.off()
@@ -177,7 +177,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     # diagnostic plots
     if (plots) {
       # plot histogram of calculated ratios
-      pdf("../doku/plot_radex.pdf", width=8, height=4)
+      pdf("../doku/fig/plot_radex.pdf", width=8, height=4)
       par(mfrow=c(1, 2))
       hist(rad.ratio, xlab="glorad/radex", breaks="Sturges", main="",
            xlim=c(0, 1))
@@ -291,7 +291,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
 
     if (plots) {
       if (emismeth == "both") {
-        pdf("../doku/plot_fcorr_both.pdf")
+        pdf("../doku/fig/plot_fcorr_both.pdf")
         par(mfrow=c(2, 1), mar=c(3, 4, 1, 1))
         # plot data with Brunt model
         with(est.dat[ix],
@@ -361,7 +361,7 @@ echseParEst <- function(parname,  # name of parameter group to estimate
     est.dat$emis <- with(est.dat[ix.rsdmax],
                          - (rld - rlu) / (sig * (ta + 273.15) ^ 4))
     # (4) plot observation-based emissivity against models
-    pdf(paste0("../doku/plot_emis_both_", fs, ".pdf"), height=5, width=9)
+    pdf(paste0("../doku/fig/plot_emis_both_", fs, ".pdf"), height=5, width=9)
     par(mfrow=c(1, 2))
     with(est.dat[ix.rsdmax & !ix.noon],
          plot(as.numeric(EmisBrunt(0.34, -0.14,
